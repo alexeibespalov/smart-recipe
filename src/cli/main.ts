@@ -554,11 +554,11 @@ async function runImport(
       const recipeUrl = getString(v, "recipeUrl");
       if (recipeUrl) {
         parts.push(`
-  [1m[32m✓ Recipe uploaded successfully![0m`);
-        parts.push(`  [36m${recipeUrl}[0m`);
+  \x1b[1m\x1b[32m✓ Recipe uploaded successfully!\x1b[0m`);
+        parts.push(`  \x1b[36m${recipeUrl}\x1b[0m`);
       } else {
         parts.push(`
-  [1m[32m✓ Draft created:[0m ${getString(v, "title") ?? ""}`);
+  \x1b[1m\x1b[32m✓ Draft created:\x1b[0m ${getString(v, "title") ?? ""}`);
         const id = getString(v, "id");
         if (id) parts.push(`  Draft ID: ${id} (${getString(v, "status") ?? ""})`);
       }
