@@ -240,7 +240,10 @@ export class MonsieurCuisineSmartClient {
     const query = mediaIds.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&");
     const result = await this.proxy({ endpoint: `api/v1/media?${query}`, locale });
     const data = getRecord(result, "data");
-    const media = getRecord(data, "media") ?? data ?? result;
+    // The API returns `data.media` as an array; getRecord() only accepts plain objects.
+    // An empty array is a valid "not processed yet" answer, so only fall back when `media` is absent.
+    const nestedMedia = data && Array.isArray(data.media) ? data.media : undefined;
+    const media = nestedMedia ?? getRecord(data, "media") ?? data ?? result;
     this.assertVendorResponse(McMediaListResponseSchema, media, `api/v1/media?${query}`);
     return media;
   }
