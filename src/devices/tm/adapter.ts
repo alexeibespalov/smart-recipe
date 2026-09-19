@@ -277,7 +277,8 @@ export class ThermomixAdapter implements DeviceAdapter<CookidooRecipeInput, Cook
   }
 
   async getCurrentUser(cookie: string) {
-    const client = new CookidooClient({ cookie, locale: "de-DE" });
+    // Cookidoo cookies belong to one country domain (cookidoo.cz, cookidoo.de...), so check the configured one.
+    const client = new CookidooClient({ cookie, locale: process.env.TM_LOCALE ?? "de-DE" });
     return client.request<unknown>({
       method: "GET",
       path: "/community/profile",
