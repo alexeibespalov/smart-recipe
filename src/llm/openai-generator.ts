@@ -5,6 +5,8 @@ import type { RecipeGenerationOptions, RecipeGenerator } from "./types.js";
 import { makeOpenAIStrictSchema } from "./schema-format.js";
 import { getArray, getRecord, getString } from "../utils/unknown.js";
 import type { ReasoningEffort } from "./types.js";
+import { promptModeToRawMode } from "../recipes/modes.js";
+import type { PromptModeInput } from "../recipes/types.js";
 
 type GenerationDefaults = Required<Omit<RecipeGenerationOptions, "adapter">> & Pick<RecipeGenerationOptions, "adapter">;
 
@@ -46,9 +48,17 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
       const output = await this.generateOnce(page, finalOptions, feedback);
       const validation = adapter.validateInput(output);
       const excludedErrors = validateExcludedModes(output, finalOptions.excludeModes);
-      const allErrors = [...validation.errors, ...excludedErrors];
-      if (validation.ok && excludedErrors.length === 0) {
-        return adapter.normalizeInput(output) as RecipeInput;
+      // Range checks of the Smart modes (e.g. puree 30-120 s) run only when the device payload is built.
+      // Run them here too, so the model can correct a bad time instead of the whole import failing.
+      const modeErrors = validation.ok ? validateModeSettings(output) : [];
+      const allErrors = [...validation.errors, ...excludedErrors, ...modeErrors];
+      if (validation.ok && excludedErrors.length === 0 && modeErrors.length === 0) {
+        const normalized = adapter.normalizeInput(output) as RecipeInput;
+        const payloadError = tryCreatePayload(adapter, normalized);
+        if (!payloadError) return normalized;
+        allErrors.push(payloadError);
+        feedback = { errors: allErrors, previous: output };
+        continue;
       }
       feedback = { errors: allErrors, previous: output };
     }
@@ -159,6 +169,35 @@ function validateExcludedModes(output: unknown, excludeModes: string[] = []): st
   });
 
   return errors;
+}
+
+/**
+ * Converts every Monsieur Cuisine step mode to its device form and reports the ones that are out of range
+ * (time, temperature, speed...). Returns error strings that point at the failing step for LLM correction.
+ */
+function validateModeSettings(output: unknown): string[] {
+  const steps = getArray(getRecord(output, "servingSize"), "steps");
+  const errors: string[] = [];
+  steps.forEach((step, index) => {
+    const mode = getRecord(step, "mode");
+    if (!mode) return;
+    try {
+      promptModeToRawMode(mode as unknown as PromptModeInput);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`/servingSize/steps/${index}/mode (step "${getString(step, "title") ?? ""}"): ${message} Change this step so it stays within the allowed range, e.g. split the work into several steps or use another mode.`);
+    }
+  });
+  return errors;
+}
+
+function tryCreatePayload(adapter: NonNullable<RecipeGenerationOptions["adapter"]>, input: RecipeInput): string | undefined {
+  try {
+    adapter.createPayload(input as never);
+    return undefined;
+  } catch (error) {
+    return `Recipe could not be converted for the device: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 function parseReasoningEffort(value: string | undefined): ReasoningEffort {
