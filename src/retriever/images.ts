@@ -98,7 +98,8 @@ export async function hydrateImages(
 const RETRIEVER_SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 function normalizeImageUrl(url: string, pageUrl: string): string | null {
-  const first = url.split(",")[0]?.trim().split(/\s+/)[0];
+  // srcset entries are separated by ", "; a bare comma can be part of the URL (e.g. Cloudflare /cdn-cgi/image/f=auto,w=800/...).
+  const first = url.split(/,\s+/)[0]?.trim().split(/\s+/)[0];
   if (!first || first.startsWith("data:")) return null;
   try {
     return new URL(first, pageUrl).toString();
