@@ -68,7 +68,10 @@ export async function hydrateImages(
   options: { fetchImpl?: typeof fetch; maxBytes?: number } = {}
 ): Promise<RetrievedImage[]> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const maxBytes = options.maxBytes ?? 5 * 1024 * 1024;
+  // Recipe photos from Cookidoo and some sites are 8 MB or more. Monsieur Cuisine accepts them, so keep the bytes for the upload
+  // and only build the base64 data URL (sent to the vision model) for images small enough to be worth sending.
+  const maxBytes = options.maxBytes ?? 30 * 1024 * 1024;
+  const maxVisionBytes = 5 * 1024 * 1024;
   const hydrated: RetrievedImage[] = [];
   for (const image of images) {
     try {
@@ -80,8 +83,10 @@ export async function hydrateImages(
       if (!RETRIEVER_SUPPORTED_IMAGE_TYPES.has(contentType)) continue;
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength > maxBytes) continue;
-      const dataUrl = `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}`;
-      hydrated.push({ ...image, contentType, bytes, dataUrl });
+      const dataUrl = bytes.byteLength <= maxVisionBytes
+        ? `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}`
+        : undefined;
+      hydrated.push({ ...image, contentType, bytes, ...(dataUrl ? { dataUrl } : {}) });
     } catch {
       // Keep retrieval robust; broken image candidates are common.
     }

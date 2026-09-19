@@ -245,7 +245,7 @@ export class MonsieurCuisineSmartClient {
     return media;
   }
 
-  async waitForMedia(mediaIds: number[], { locale = this.locale, attempts = 10, delayMs = 1000 } = {}): Promise<unknown[] | null> {
+  async waitForMedia(mediaIds: number[], { locale = this.locale, attempts = 30, delayMs = 1000 } = {}): Promise<unknown[] | null> {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const media = await this.getMedia(mediaIds, { locale });
       if (Array.isArray(media) && media.length === mediaIds.length && media.every((item) => item?.id && item?.url)) {
