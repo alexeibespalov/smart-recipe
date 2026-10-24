@@ -790,18 +790,28 @@ async function listRecipesCommand(options: Record<string, unknown>) {
     );
   }
 
-  const formattedRecipes = recipes.map((recipe) => ({
-      id: getString(recipe, "id"),
+  const formattedRecipes = recipes.map((recipe) => {
+    const rawId = isRecord(recipe) ? (recipe.id ?? recipe.recipeId) : undefined;
+    const id = rawId !== undefined && rawId !== null ? String(rawId) : (getString(recipe, "id") ?? undefined);
+    const rawDeviceTypes = getArray(recipe, "deviceTypes");
+    const deviceTypes = rawDeviceTypes.map((dt) => {
+      if (typeof dt === "string") return dt;
+      if (isRecord(dt) && typeof dt.name === "string") return dt.name;
+      return String(dt);
+    });
+    return {
+      id,
       title: getString(recipe, "title"),
       status: getString(recipe, "status"),
       updatedAt: getString(recipe, "updatedAt"),
-      deviceTypes: getArray(recipe, "deviceTypes"),
+      deviceTypes,
       ingredientCount: getNumber(recipe, "ingredientCount"),
       stepCount: getNumber(recipe, "stepCount"),
       hasImage: Boolean(isRecord(recipe) ? recipe.hasImage : false),
       hasHints: Boolean(isRecord(recipe) ? recipe.hasHints : false),
       recipeUrl: getString(recipe, "recipeUrl")
-    }));
+    };
+  });
 
   printOutput({
     total,
