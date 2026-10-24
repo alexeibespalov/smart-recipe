@@ -299,7 +299,9 @@ function addImportOptions(cmd: Command): Command {
     .option("--tm-version <version>", "Target Thermomix model: 'tm7', 'tm6', or 'tm5'")
     .option("--mc-food-processor <boolean>", "Whether you own the Monsieur Cuisine food processor attachment (true/false)")
     .option("--extend-tm-modes", "Enable TM modes not supported in My Creations (e.g. the cook/simmer mode). These will show as red in the Cookidoo editor.")
-    .option("--experimental-tm-modes", "Alias for --extend-tm-modes.");
+    .option("--experimental-tm-modes", "Alias for --extend-tm-modes.")
+    .option("--publish", "Publish directly to device library (private-publish) so it appears on the cooker screen immediately")
+    .option("--status <status>", "Recipe status: 'draft' or 'private-publish' (default: 'private-publish' for Monsieur Cuisine)");
 }
 
 program
@@ -481,13 +483,19 @@ async function runImport(
   let authProvider = await resolveAuthInteractively(options, isInteractive, adapter, GLOBAL_ENV_PATH);
 
   // ── Step 6: Upload ────────────────────────────────────────────────────────
+  const uploadStatus = typeof options.status === "string"
+    ? options.status
+    : (options.publish !== false && adapter.id === "mc" ? "private-publish" : "draft");
+  const recipeInputToUpload = isRecord(generated.recipeInput)
+    ? { ...generated.recipeInput, status: uploadStatus }
+    : generated.recipeInput;
   let uploadResult;
   try {
     const cookieKey = adapter.id === "tm" ? "TM_COOKIE" : "MC_COOKIE";
     const activeCookie = options.cookie ?? process.env[cookieKey];
     uploadResult = await uploadSmartRecipe({
       page: generated.page,
-      recipeInput: generated.recipeInput,
+      recipeInput: recipeInputToUpload,
       locale: targetLocale,
       cookie: typeof activeCookie === "string" ? activeCookie : undefined,
       authProvider,
@@ -527,7 +535,7 @@ async function runImport(
       logger.info(`retrying ${adapter.deviceName} upload with new session`);
       uploadResult = await uploadSmartRecipe({
         page: generated.page,
-        recipeInput: generated.recipeInput,
+        recipeInput: recipeInputToUpload,
         locale: targetLocale,
         cookie: newCookie,
         authProvider,

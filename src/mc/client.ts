@@ -170,11 +170,16 @@ export class MonsieurCuisineSmartClient {
     return user;
   }
 
-  async listDrafts({ page = 1, size = 20 } = {}): Promise<unknown> {
+  async listDrafts({ page = 1, size = 20, status = "all" }: { page?: number; size?: number; status?: "draft" | "private-publish" | "all" } = {}): Promise<unknown> {
     const params = new URLSearchParams();
     params.set("size", String(size));
     params.set("page", String(page));
-    params.append("filters[status][]", "draft");
+    if (status === "all") {
+      params.append("filters[status][]", "draft");
+      params.append("filters[status][]", "private-publish");
+    } else {
+      params.append("filters[status][]", status);
+    }
     const result = await this.proxy({
       endpoint: `api/v3/auth/user/recipes?${params.toString()}`,
       referer: createRecipeUrl(this.locale)

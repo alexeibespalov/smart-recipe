@@ -82,9 +82,10 @@ export class MonsieurCuisineAdapter implements DeviceAdapter<RecipeInput, SmartR
     return client.getCurrentUser();
   }
 
-  async listDrafts(options: { cookie: string; page?: number; size?: number }) {
-    const client = new MonsieurCuisineSmartClient({ cookie: options.cookie });
-    const result = await client.listDrafts({ page: options.page, size: options.size });
+  async listDrafts(options: { cookie: string; locale?: string; page?: number; size?: number; status?: "draft" | "private-publish" | "all" }) {
+    const locale = (options.locale ?? process.env.MC_LOCALE ?? "en-US") as SupportedLocale;
+    const client = new MonsieurCuisineSmartClient({ cookie: options.cookie, locale });
+    const result = await client.listDrafts({ page: options.page, size: options.size, status: options.status ?? "all" });
     const resultObject = result && typeof result === "object" ? result as { data?: { recipes?: McDraftRecipe[]; total?: number; totalPage?: number } } : {};
     const recipes = (resultObject.data?.recipes ?? []).map((recipe) => {
       const id = recipe.id;
