@@ -101,8 +101,6 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
 
         continue;
       }
-        continue;
-      }
       feedback = { errors: allErrors, previous: output };
     }
 
