@@ -10,7 +10,7 @@ import type { SmartRecipePayload } from "../recipes/types.js";
 import { assertSmartRecipePayload } from "../recipes/validation.js";
 import type { SupportedLocale } from "../catalogs/types.js";
 import { validateApiResponse } from "../devices/response-validation.js";
-import { getRecord } from "../utils/unknown.js";
+import { getNumber, getRecord } from "../utils/unknown.js";
 
 export interface MonsieurCuisineSmartClientOptions {
   cookie?: string;
@@ -137,6 +137,7 @@ export class MonsieurCuisineSmartClient {
     if (!response.ok) {
       throw new MonsieurCuisineApiError(`Monsieur Cuisine proxy HTTP ${response.status}`, {
         status: response.status,
+        code: getNumber(body, "code"),
         response: body,
         endpoint
       });
@@ -240,10 +241,14 @@ export class MonsieurCuisineSmartClient {
     const query = mediaIds.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&");
     const result = await this.proxy({ endpoint: `api/v1/media?${query}`, locale });
     const data = getRecord(result, "data");
-    // The API returns `data.media` as an array; getRecord() only accepts plain objects.
-    // An empty array is a valid "not processed yet" answer, so only fall back when `media` is absent.
-    const nestedMedia = data && Array.isArray(data.media) ? data.media : undefined;
-    const media = nestedMedia ?? getRecord(data, "media") ?? data ?? result;
+    const media =
+      data && Array.isArray(data.media)
+        ? data.media
+        : Array.isArray(result.data)
+          ? result.data
+          : Array.isArray(result.media)
+            ? result.media
+            : getRecord(data, "media") ?? data ?? result;
     this.assertVendorResponse(McMediaListResponseSchema, media, `api/v1/media?${query}`);
     return media;
   }
