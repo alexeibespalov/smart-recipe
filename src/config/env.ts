@@ -21,7 +21,7 @@ export function loadDotEnv(filePath = ".env", { override = false } = {}): Record
       value = value.slice(1, -1);
     }
     loaded[key] = value;
-    if (override || process.env[key] === undefined) {
+    if (override ? (value !== "" || !process.env[key]) : (!process.env[key])) {
       process.env[key] = value;
     }
   }
