@@ -275,7 +275,7 @@ function addImportOptions(cmd: Command): Command {
     .option("--always-upload", "Always upload without asking for confirmation")
     .option("--full-response", "Print the full result object")
     .option("--no-print-markdown", "Do not pretty-print the retrieved markdown to the console")
-    .option("--model <model>", "Gemini recipe model", process.env.GEMINI_MODEL ?? "gemini-3.5-flash")
+    .option("--model <model>", "Gemini recipe model", process.env.GEMINI_MODEL ?? "gemini-3.8-flash")
     .option("--reasoning <effort>", "Recipe generation reasoning effort: minimal, low, medium, high", process.env.GEMINI_REASONING_EFFORT ?? process.env.OPENAI_REASONING_EFFORT ?? "medium")
     .option("--recreate-image", "Generate a new recipe image with OpenAI instead of uploading the source image")
     .option("--recreate-image-with-source-images", "When recreating the image, send downloaded website images as loose visual context")

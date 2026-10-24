@@ -30,7 +30,7 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
       ...(geminiKey ? { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/" } : {})
     });
     this.defaults = {
-      model: options.model ?? process.env.GEMINI_MODEL ?? process.env.OPENAI_MODEL ?? (geminiKey ? "gemini-2.5-flash" : "gpt-4o-mini"),
+      model: options.model ?? process.env.GEMINI_MODEL ?? process.env.OPENAI_MODEL ?? (geminiKey ? "gemini-3.8-flash" : "gpt-4o-mini"),
       reasoningEffort: options.reasoningEffort ?? parseReasoningEffort(process.env.GEMINI_REASONING_EFFORT ?? process.env.OPENAI_REASONING_EFFORT),
       locale: options.locale ?? "de-DE",
       maxCorrectionAttempts: options.maxCorrectionAttempts ?? 3,

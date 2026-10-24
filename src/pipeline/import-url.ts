@@ -106,7 +106,7 @@ export async function generateSmartRecipe(options: GenerateSmartRecipeOptions): 
   const cacheOptions = {
     page: options.page,
     locale,
-    model: options.openAIModel ?? process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
+    model: options.openAIModel ?? process.env.GEMINI_MODEL ?? "gemini-3.8-flash",
     reasoningEffort:
       options.reasoningEffort ??
       process.env.GEMINI_REASONING_EFFORT ??
