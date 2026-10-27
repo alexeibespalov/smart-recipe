@@ -9,6 +9,7 @@ import { confirm, password, select } from "./prompts.js";
 import { blankLine, colorCyan, colorDim, printSuccess, printWarning } from "./terminal.js";
 import { withCliSpinner } from "./spinner.js";
 import type { DeviceAdapter } from "../devices/adapter.js";
+import { defaultExcludedModes } from "../pipeline/assistant-recipes.js";
 
 export type RecipeImageMode = "generate" | "generate-with-sources" | "skip" | "none";
 
@@ -109,19 +110,11 @@ export function explicitImageMode(options: Record<string, unknown>): RecipeImage
 }
 
 export function resolveExcludedModes(targetDevice: "mc" | "tm", options: Record<string, unknown>): string[] {
-  const excludeModes: string[] = options.excludeModes
-    ? String(options.excludeModes).split(",").map((mode) => mode.trim())
-    : [];
-
-  if (targetDevice === "mc" && !mcHasFoodProcessor() && !excludeModes.includes("foodProcessor")) {
-    excludeModes.push("foodProcessor");
-  }
-
-  if (targetDevice === "tm" && !(options.extendTmModes || options.experimentalTmModes) && !excludeModes.includes("cook")) {
-    excludeModes.push("cook");
-  }
-
-  return excludeModes;
+  return defaultExcludedModes(targetDevice, {
+    mcFoodProcessor: mcHasFoodProcessor(),
+    extendTmModes: Boolean(options.extendTmModes || options.experimentalTmModes),
+    extra: options.excludeModes ? String(options.excludeModes).split(",").map((mode) => mode.trim()) : []
+  });
 }
 
 export async function decideUpload(

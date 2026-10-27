@@ -275,6 +275,26 @@ smart-recipe create "https://example.com/recipe" --target mc --locale en
 
 Two-letter aliases are accepted for supported locales: `de`, `en`, `fr`, `it`, `pl`, and `cs`. If no target locale is configured, the interactive CLI asks which locale to use and can save it as `MC_LOCALE` or `TM_LOCALE`. For authenticated source recipes, the source URL locale is used when present; otherwise use `--source-locale` to choose the source API locale independently from the generated recipe locale.
 
+## Use with Claude Desktop or another AI assistant
+
+SmartRecipe can also work without its own LLM: an assistant (Claude, Gemini, …) writes the recipe JSON itself, and
+SmartRecipe only fetches the source, checks the JSON against the same schema and device limits it applies to Gemini
+output, and uploads it. No `GEMINI_API_KEY` is needed for this path.
+
+```bash
+smart-recipe --json prepare "https://example.com/recipe"   # instructions, schema and source text for the assistant
+smart-recipe --json validate /abs/path/recipe.json          # { ok, errors } with the failing field paths
+smart-recipe --json upload /abs/path/recipe.json --source-url "https://example.com/recipe"
+```
+
+`prepare` also accepts `--file recipe.txt` or recipe text on stdin. `upload` refuses invalid recipes, defaults
+Monsieur Cuisine recipes to `private-publish` (shown on the cooker), and accepts `--status draft` and `--no-image`.
+
+**Claude Desktop:** `npm run build:claude -- --bump patch` builds a versioned `claude/releases/smart-cooker-<version>.mcpb`, a Claude Desktop extension
+(SmartRecipe bundled — no checkout or API key needed) that gives Claude these steps as tools. See
+[claude/README.md](claude/README.md). The same MCP server
+is available as `smart-recipe-mcp` for other MCP clients.
+
 ---
 
 ## Recreate the recipe image
@@ -397,6 +417,8 @@ smart-recipe create "https://example.com/recipe" --dry-run --full-response --jso
 ```
 
 ### Validate a recipe JSON file
+
+Runs the same checks applied to generated recipes (schema, device limits, excluded accessory modes):
 
 ```bash
 smart-recipe validate recipe.json

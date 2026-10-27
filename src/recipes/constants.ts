@@ -18,7 +18,8 @@ export const SMART_MODE_TYPES = {
   riceCooking: "rice_cooking",
   foodProcessor: "food_processor",
   puree: "puree",
-  smoothie: "smoothie"
+  smoothie: "smoothie",
+  heatWater: "heat_water"
 } as const;
 
 export const SMART_HEATING_TEMPERATURE_STEPS = [
@@ -27,13 +28,16 @@ export const SMART_HEATING_TEMPERATURE_STEPS = [
 
 export const SMART_LOW_TEMPERATURE_STEPS = [37, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95] as const;
 export const SMART_FERMENTATION_TEMPERATURE_STEPS = [37, 40, 45, 50, 55, 60, 65] as const;
+export const SMART_HEAT_WATER_TEMPERATURE_STEPS = [37, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100] as const;
 
 export const SMART_MODE_GUIDE = {
   manualCooking: {
     description: "General manual cooking with temperature, time, speed and blade direction.",
     temperature: { unit: "C", steps: SMART_HEATING_TEMPERATURE_STEPS },
     time: { unit: "seconds", min: 1, max: 5940 },
-    speed: { min: 0, max: 10, heatedMax: 3 },
+    speed: { min: 1, max: 10, heatedMax: 3 },
+    /** Speeds 7-10 run for at most 10 minutes per step (operating instructions, "Set the speed"). */
+    fastSpeed: { minSpeed: 7, maxSeconds: 600 },
     rotationDirection: ["left", "right"]
   },
   turbo: { description: "Short high-power chopping bursts.", time: { unit: "seconds", min: 1, max: 20 } },
@@ -72,7 +76,12 @@ export const SMART_MODE_GUIDE = {
   riceCooking: { description: "Automatic rice cooking.", time: { unit: "seconds", min: 1200, max: 2400 } },
   foodProcessor: { description: "Food processor/cutter program.", time: { unit: "seconds", min: 1, max: 300 } },
   puree: { description: "Puree program.", time: { unit: "seconds", min: 30, max: 120 } },
-  smoothie: { description: "Smoothie program.", time: { unit: "seconds", min: 30, max: 120 } }
+  smoothie: { description: "Smoothie program.", time: { unit: "seconds", min: 30, max: 120 } },
+  heatWater: {
+    description: "Heats water in the jug until it reaches the target temperature (100 C = boiling), then stops.",
+    temperature: { unit: "C", steps: SMART_HEAT_WATER_TEMPERATURE_STEPS },
+    maxLiters: 1.5
+  }
 } as const;
 
 export const SMART_PROMPT_MODE_NAMES = [
@@ -93,5 +102,6 @@ export const SMART_PROMPT_MODE_NAMES = [
   "riceCooking",
   "foodProcessor",
   "puree",
-  "smoothie"
+  "smoothie",
+  "heatWater"
 ] as const;

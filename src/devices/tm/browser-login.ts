@@ -249,8 +249,9 @@ async function installPlaywrightChromium(): Promise<void> {
   const packageJsonPath = require.resolve("playwright/package.json");
   const cliPath = path.join(path.dirname(packageJsonPath), "cli.js");
   await new Promise<void>((resolve, reject) => {
+    // Progress goes to stderr: stdout may be a machine channel (--json output, MCP stdio).
     const child = spawn(process.execPath, [cliPath, "install", "chromium"], {
-      stdio: "inherit",
+      stdio: ["ignore", process.stderr, process.stderr],
     });
     child.on("error", reject);
     child.on("exit", (code) => {

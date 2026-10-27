@@ -13,7 +13,7 @@ describe("OpenAI strict schema formatting", () => {
     expect(schema.anyOf).toBeUndefined();
     expect(schema.required).toContain("status");
     expect(mode0.anyOf).toHaveLength(3);
-    expect(mode1.anyOf).toHaveLength(17);
+    expect(mode1.anyOf).toHaveLength(18);
   });
 
   it("converts TypeBox const literals to enums for OpenAI", () => {

@@ -1,15 +1,11 @@
 import OpenAI from "openai";
 import type { RetrievedRecipePage } from "../retriever/types.js";
 import type { RecipeInput } from "../recipes/schema.js";
-import { applyCookidooSpeedRamps } from "../recipes/cookidoo-speed-ramp.js";
-import { validateCookidooScaleSteps } from "../recipes/cookidoo-scale-fidelity.js";
 import type { RecipeGenerationOptions, RecipeGenerator } from "./types.js";
 import { makeOpenAIStrictSchema } from "./schema-format.js";
-import { detectRecipeSource } from "../sources/index.js";
-import { getArray, getRecord, getString } from "../utils/unknown.js";
+import { checkRecipeInput } from "../pipeline/recipe-checks.js";
+import { buildRecipeGenerationRequest, type RecipeGenerationFeedback } from "./generation-request.js";
 import type { ReasoningEffort } from "./types.js";
-import { promptModeToRawMode } from "../recipes/modes.js";
-import type { PromptModeInput } from "../recipes/types.js";
 
 type GenerationDefaults = Required<Omit<RecipeGenerationOptions, "adapter">> & Pick<RecipeGenerationOptions, "adapter">;
 
@@ -48,60 +44,19 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
       throw new Error("OpenAIRecipeGenerator requires a device adapter.");
     }
     const finalOptions = mergedOptions as Required<RecipeGenerationOptions>;
-    let feedback: { errors: string[]; previous: unknown } | undefined;
+    let feedback: RecipeGenerationFeedback | undefined;
 
     const adapter = finalOptions.adapter;
-    const detectedSource = detectRecipeSource(page.finalUrl || page.url);
-    const useCookidooFidelityFixes =
-      adapter.id === "mc" &&
-      detectedSource.type === "cookidoo-official";
 
     for (let attempt = 0; attempt <= finalOptions.maxCorrectionAttempts; attempt += 1) {
       const output = await this.generateOnce(page, finalOptions, feedback);
-      const validation = adapter.validateInput(output);
-      const excludedErrors = validateExcludedModes(output, finalOptions.excludeModes);
-      const modeErrors = validation.ok ? validateModeSettings(output) : [];
-      const scaleErrors = useCookidooFidelityFixes
-        ? validateCookidooScaleSteps(output, page.markdown)
-        : [];
-      const allErrors = [
-        ...validation.errors,
-        ...excludedErrors,
-        ...modeErrors,
-        ...scaleErrors
-      ];
-      if (
-        validation.ok &&
-        excludedErrors.length === 0 &&
-        modeErrors.length === 0 &&
-        scaleErrors.length === 0
-      ) {
-        const normalized =
-          adapter.normalizeInput(output) as RecipeInput;
-
-        const finalized = useCookidooFidelityFixes
-          ? applyCookidooSpeedRamps(normalized, page.markdown)
-          : normalized;
-
-        const finalValidation =
-          adapter.validateInput(finalized);
-
-        if (finalValidation.ok) {
-          const payloadError = tryCreatePayload(adapter, finalized);
-          if (!payloadError) return finalized;
-          allErrors.push(payloadError);
-          feedback = { errors: allErrors, previous: output };
-          continue;
-        }
-
-        feedback = {
-          errors: finalValidation.errors,
-          previous: finalized
-        };
-
-        continue;
-      }
-      feedback = { errors: allErrors, previous: output };
+      const check = checkRecipeInput(adapter, output, {
+        excludeModes: finalOptions.excludeModes,
+        sourceUrl: page.finalUrl || page.url,
+        sourceMarkdown: page.markdown
+      });
+      if (check.kind === "ok") return check.recipeInput as RecipeInput;
+      feedback = { errors: check.errors, previous: check.checked };
     }
 
     throw new Error(`OpenAI output failed validation after ${finalOptions.maxCorrectionAttempts} correction attempts:\n${feedback?.errors.join("\n")}`);
@@ -110,48 +65,13 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
   private async generateOnce(
     page: RetrievedRecipePage,
     options: Required<RecipeGenerationOptions>,
-    feedback?: { errors: string[]; previous: unknown }
+    feedback?: RecipeGenerationFeedback
   ): Promise<unknown> {
     const adapter = options.adapter;
-    const schema = adapter.getSchema(options);
-    const strictSchema = makeOpenAIStrictSchema(schema);
-    const fullSchemaText = JSON.stringify(schema, null, 2);
-    const correctionText = feedback
-      ? [
-        "Previous generated JSON failed validation.",
-        "Validation errors:",
-        feedback.errors.join("\n"),
-        "",
-        "Previous JSON:",
-        JSON.stringify(feedback.previous, null, 2),
-        "",
-        "Return corrected JSON only."
-      ].join("\n")
-      : "";
-
-    const detectedSource = detectRecipeSource(page.finalUrl || page.url);
-    const sourcePolicy =
-      detectedSource.type === "cookidoo-official"
-        ? "machine-fidelity"
-        : "adapt";
-
-    const systemPromptText = adapter.getPromptInstructions(options.locale, {
-      ...options,
-      sourcePolicy
-    });
-
-    const userPromptText = [
-      `Source URL: ${page.finalUrl || page.url}`,
-      `Detected title: ${page.title}`,
-      `Preferred locale: ${options.locale}`,
-      "",
-      "Full schema with detailed descriptions:",
-      fullSchemaText,
-      correctionText,
-      "",
-      "Recipe page as Markdown:",
-      page.markdown
-    ].filter(Boolean).join("\n");
+    const request = buildRecipeGenerationRequest(page, adapter, options, feedback);
+    const strictSchema = makeOpenAIStrictSchema(request.schema);
+    const systemPromptText = request.systemPrompt;
+    const userPromptText = request.userPrompt;
 
     let content: string | undefined;
 
@@ -208,69 +128,6 @@ export class OpenAIRecipeGenerator implements RecipeGenerator {
     }
 
     return JSON.parse(content);
-  }
-}
-
-/**
- * Checks that none of the recipe steps use a mode that was excluded for this generation run.
- * Returns an array of human-readable error strings suitable for feeding back to the LLM.
- */
-function validateExcludedModes(output: unknown, excludeModes: string[] = []): string[] {
-  const finalExcludeModes = excludeModes ?? [];
-  if (!finalExcludeModes.length || typeof output !== "object" || !output) return [];
-  const excluded = new Set(finalExcludeModes);
-  const errors: string[] = [];
-
-  // MC structure
-  const mcSteps = getArray(getRecord(output, "servingSize"), "steps");
-  mcSteps.forEach((step, index) => {
-    const modeType = getString(getRecord(step, "mode"), "type");
-    if (modeType && excluded.has(modeType)) {
-      errors.push(`/servingSize/steps/${index}/mode/type must not be "${modeType}" — this mode requires an accessory the user does not own. Replace it with an alternative mode or type "none".`);
-    }
-  });
-
-  // TM structure
-  const tmSteps = getArray(output, "steps");
-  tmSteps.forEach((step, index) => {
-    const annotations = getArray(step, "modeAnnotations");
-    annotations.forEach((ann, annIdx) => {
-      const modeType = getString(getRecord(ann, "mode"), "type");
-      if (modeType && excluded.has(modeType)) {
-        errors.push(`/steps/${index}/modeAnnotations/${annIdx}/mode/type must not be "${modeType}" — this mode requires an accessory the user does not own. Replace it with an alternative mode.`);
-      }
-    });
-  });
-
-  return errors;
-}
-
-/**
- * Converts every Monsieur Cuisine step mode to its device form and reports the ones that are out of range
- * (time, temperature, speed...). Returns error strings that point at the failing step for LLM correction.
- */
-function validateModeSettings(output: unknown): string[] {
-  const steps = getArray(getRecord(output, "servingSize"), "steps");
-  const errors: string[] = [];
-  steps.forEach((step, index) => {
-    const mode = getRecord(step, "mode");
-    if (!mode) return;
-    try {
-      promptModeToRawMode(mode as unknown as PromptModeInput);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`/servingSize/steps/${index}/mode (step "${getString(step, "title") ?? ""}"): ${message} Change this step so it stays within the allowed range, e.g. split the work into several steps or use another mode.`);
-    }
-  });
-  return errors;
-}
-
-function tryCreatePayload(adapter: NonNullable<RecipeGenerationOptions["adapter"]>, input: RecipeInput): string | undefined {
-  try {
-    adapter.createPayload(input as never);
-    return undefined;
-  } catch (error) {
-    return `Recipe could not be converted for the device: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 

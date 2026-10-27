@@ -5,7 +5,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { Command, Help, Option } from "commander";
 import fs from "node:fs";
-import { loadDotEnv, upsertDotEnvValue, getTmVersion, getTmLocale, mcHasFoodProcessor } from "../config/env.js";
+import { browserSandboxFromEnv, loadDotEnv, upsertDotEnvValue, getTmVersion, getTmLocale, mcHasFoodProcessor } from "../config/env.js";
 import { categoryPromptText, plannedLocales, supportedLocales } from "../catalogs/index.js";
 import { MonsieurCuisineApiError } from "../mc/errors.js";
 import { CookidooError } from "../devices/tm/errors.js";
@@ -16,6 +16,18 @@ import {
   type GenerateSmartRecipeResult
 } from "../pipeline/import-url.js";
 import { retrieveRecipePage } from "../retriever/retriever.js";
+import { checkRecipeInput } from "../pipeline/recipe-checks.js";
+import {
+  buildRecipeBrief,
+  defaultRecipeStatus,
+  detectRecipeDevice,
+  isSourceTypeHint,
+  retrieveRecipeSource,
+  sourceFidelityChecksApply,
+  summarizeRecipeList,
+  textRecipePage,
+  uploadRecipeInput
+} from "../pipeline/assistant-recipes.js";
 import type { RetrievedRecipePage } from "../retriever/types.js";
 import { createLogger } from "../logging/logger.js";
 import type { LogLevel } from "../logging/logger.js";
@@ -90,12 +102,6 @@ type AdapterWithPasswordLogin = ReturnType<typeof getDeviceAdapter> & {
   passwordLogin?: (options: { locale?: string; credentials: { email: string; password: string } }) => Promise<{ cookie: string; source?: string }>;
 };
 
-function detectDeviceFromRecipe(json: unknown): "mc" | "tm" {
-  if (isRecord(json) && (typeof json.servingSize === "number" || Array.isArray(json.steps))) {
-    return "tm";
-  }
-  return "mc";
-}
 
 function hasExplicitLogLevel(): boolean {
   return Boolean(process.env.LOG_LEVEL) || process.argv.some((arg) => arg === "--log-level" || arg.startsWith("--log-level="));
@@ -319,14 +325,7 @@ program.commands.at(-1)!.action(async (url, options) => {
     destination: 2
   });
   logger.info({ url }, "retrieving recipe page");
-  const source = detectRecipeSource(url, { source: options.source });
-  const page = source.type === "web"
-    ? await retrieveRecipePage(source.url, { includeImageBytes: true })
-    : await fetchRecipeSourceAsPage(source, {
-        cookies: sourceCookiesFromOptions(options, source),
-        locale: sourceLocaleFromOptions(options, source),
-        includeImageBytes: true,
-      });
+  const page = await retrieveSourcePage(url, options, { includeImageBytes: true });
   if (!program.optsWithGlobals().json && options.printMarkdown !== false) {
     console.log(`\n=== Retrieved Markdown from URL ===\n`);
     console.log(marked.parse(page.markdown));
@@ -389,6 +388,169 @@ program.commands.at(-1)!.action(async (options) => {
   };
   await runImport(page, options, program.optsWithGlobals(), ["import-stdin"]);
 });
+
+// ─── Assistant-authored recipes (no built-in LLM) ─────────────────────────────
+// `prepare` hands an external assistant the exact generation brief; `validate` and `upload`
+// run the same checks the built-in generator applies, so its JSON is held to the same standard.
+
+function addAssistantDeviceOptions(cmd: Command): Command {
+  return cmd
+    .option("--device <device>", "Target device: 'mc' or 'tm'")
+    .option("--tm-version <version>", "Target Thermomix model: 'tm7', 'tm6', or 'tm5'")
+    .option("--mc-food-processor <boolean>", "Whether you own the Monsieur Cuisine food processor attachment (true/false)")
+    .option("--exclude-modes <modes>", "Comma-separated list of Smart modes to exclude (e.g. foodProcessor)")
+    .option("--extend-tm-modes", "Enable TM modes not supported in My Creations (e.g. the cook/simmer mode).")
+    .option("--source <source>", "Source type hint: 'web', 'mc', 'cookidoo', or 'tm'")
+    .option("--source-locale <locale>", "Locale used for authenticated source APIs when the source URL/ID does not include one")
+    .option("--source-cookie <cookie>", "Cookie header for authenticated source recipe ingestion")
+    .option("--mc-source-cookie <cookie>", "Monsieur Cuisine source Cookie header")
+    .option("--tm-source-cookie <cookie>", "Cookidoo/Thermomix source Cookie header");
+}
+
+program
+  .command("prepare")
+  .description("Retrieve a recipe and print the generation instructions, schema and source text so you (or an assistant) can write the recipe JSON. Never calls an LLM.")
+  .argument("[url]", "Recipe URL (omit to read recipe text from --file or stdin)")
+  .option("--file <file>", "Read recipe text from a local file instead of a URL")
+  .option("--title <title>", "Recipe title hint for text input")
+  .option("--locale <locale>", `Target recipe locale/language (${supportedLocales.join(", ")})`);
+addAssistantDeviceOptions(program.commands.at(-1)!);
+program.commands.at(-1)!.action(async (url: string | undefined, options) => {
+  if (options.mcFoodProcessor) {
+    process.env.MC_HAS_FOOD_PROCESSOR = String(options.mcFoodProcessor).toLowerCase();
+  }
+  const page = url
+    ? await retrieveSourcePage(url, options, { includeImageBytes: false })
+    : textRecipePage(
+        typeof options.file === "string" ? await readFile(path.resolve(options.file), "utf8") : await readStdin(),
+        typeof options.title === "string" ? options.title : ""
+      );
+  const { device } = await resolveTargetDeviceSettings(options, false, GLOBAL_ENV_PATH);
+  const adapter = getDeviceAdapter(device);
+  const { locale } = await getOrPromptTargetLocale(device, options, false, GLOBAL_ENV_PATH);
+  const brief = buildRecipeBrief(page, adapter, {
+    locale,
+    excludeModes: resolveExcludedModes(device, options),
+    tmVersion: getTmVersion()
+  });
+
+  printOutput(brief, Boolean(program.optsWithGlobals().json), (v) => [
+    "=== Instructions ===", v.instructions, "", "=== Task ===", v.task
+  ].join("\n"));
+});
+
+program
+  .command("upload")
+  .description("Check a recipe input JSON (written by you or an assistant) and upload it to the cooker account. Never calls an LLM.")
+  .argument("<file>", "Recipe input JSON file ('-' reads stdin)")
+  .option("--locale <locale>", "Recipe locale (default: the JSON's settings.locale, then the saved setting)")
+  .option("--source-url <url>", "Original recipe URL: used for the recipe image and source-fidelity checks")
+  .option("--status <status>", "Recipe status: 'draft' or 'private-publish' (default: 'private-publish' for Monsieur Cuisine)")
+  .option("--no-image", "Upload without a recipe image")
+  .option("--cookie <cookie>", "Cookie header")
+  .option("--full-response", "Print the full result object");
+addAssistantDeviceOptions(program.commands.at(-1)!);
+program.commands.at(-1)!.action(async (file: string, options) => {
+  const programOpts = program.optsWithGlobals();
+  const isJsonMode = Boolean(programOpts.json);
+  const isInteractive = !isJsonMode && process.stdout.isTTY && process.stdin.isTTY;
+  const logger = createLogger({
+    level: effectiveCliLogLevel(programOpts, isInteractive),
+    pretty: !programOpts.jsonLogs,
+    destination: 2
+  });
+  if (options.mcFoodProcessor) {
+    process.env.MC_HAS_FOOD_PROCESSOR = String(options.mcFoodProcessor).toLowerCase();
+  }
+
+  const value = await readJsonInput(file);
+  const { device } = await resolveTargetDeviceSettings(
+    { ...options, device: typeof options.device === "string" ? options.device : detectRecipeDevice(value) },
+    false,
+    GLOBAL_ENV_PATH
+  );
+  const adapter = getDeviceAdapter(device);
+  const { locale } = await getOrPromptTargetLocale(
+    device,
+    { locale: typeof options.locale === "string" ? options.locale : getString(getRecord(value, "settings"), "locale") },
+    false,
+    GLOBAL_ENV_PATH
+  );
+  const sourceUrl = typeof options.sourceUrl === "string" ? options.sourceUrl : undefined;
+  const page = sourceUrl
+    ? await retrieveSourcePage(sourceUrl, options, { includeImageBytes: options.image !== false })
+    : textRecipePage("", getString(value, "title") ?? "");
+  const excludeModes = resolveExcludedModes(device, options);
+  const printInvalid = (errors: string[]) => {
+    printOutput({ ok: false, errors }, isJsonMode, (v) => ["Recipe is not valid:", ...v.errors].join("\n"));
+    process.exitCode = 1;
+  };
+  // Check before authenticating so an invalid recipe never triggers a login prompt.
+  const precheck = checkRecipeInput(adapter, value, {
+    excludeModes,
+    sourceUrl: page.finalUrl || page.url || undefined,
+    sourceMarkdown: page.markdown
+  });
+  if (precheck.kind === "invalid") {
+    printInvalid(precheck.errors);
+    return;
+  }
+
+  const authProvider = await resolveAuthInteractively(options, isInteractive, adapter, GLOBAL_ENV_PATH);
+  const activeCookie = options.cookie ?? process.env[cookieKeyForDevice(device)];
+  const outcome = await uploadRecipeInput({
+    adapter,
+    recipeInput: value,
+    locale,
+    page,
+    excludeModes,
+    status: typeof options.status === "string" ? options.status : undefined,
+    image: options.image === false ? "none" : "source",
+    cookie: typeof activeCookie === "string" ? activeCookie : undefined,
+    authProvider,
+    logger
+  });
+  if (outcome.kind === "invalid") {
+    printInvalid(outcome.errors);
+    return;
+  }
+
+  const fullResult = { page, ...outcome.recipe };
+  printOutput(
+    options.fullResponse ? printableImportResult(fullResult) : summarizeImportResult(fullResult),
+    isJsonMode,
+    (v) => {
+      const recipeUrl = getString(v, "recipeUrl");
+      return recipeUrl
+        ? `\n  ✓ Recipe uploaded: ${getString(v, "title") ?? ""}\n  ${recipeUrl}`
+        : `\n  ✓ Recipe uploaded: ${getString(v, "title") ?? ""}`;
+    }
+  );
+});
+
+async function retrieveSourcePage(
+  url: string,
+  options: Record<string, unknown>,
+  { includeImageBytes }: { includeImageBytes: boolean }
+): Promise<RetrievedRecipePage> {
+  return await retrieveRecipeSource(url, {
+    source: isSourceTypeHint(options.source) ? options.source : undefined,
+    includeImageBytes,
+    sourceAccess: (source) => ({
+      cookies: sourceCookiesFromOptions(options, source),
+      locale: sourceLocaleFromOptions(options, source)
+    })
+  });
+}
+
+async function readJsonInput(file: string): Promise<unknown> {
+  const text = file === "-" ? await readStdin() : await readFile(path.resolve(file), "utf8");
+  return JSON.parse(text);
+}
+
+function resolveUploadStatus(options: Record<string, unknown>, adapter: { id: "mc" | "tm" }): string {
+  return defaultRecipeStatus(adapter.id, typeof options.status === "string" ? options.status : undefined);
+}
 
 // ─── Interactive import wizard ────────────────────────────────────────────────
 
@@ -483,9 +645,7 @@ async function runImport(
   let authProvider = await resolveAuthInteractively(options, isInteractive, adapter, GLOBAL_ENV_PATH);
 
   // ── Step 6: Upload ────────────────────────────────────────────────────────
-  const uploadStatus = typeof options.status === "string"
-    ? options.status
-    : (options.publish !== false && adapter.id === "mc" ? "private-publish" : "draft");
+  const uploadStatus = resolveUploadStatus(options, adapter);
   const recipeInputToUpload = isRecord(generated.recipeInput)
     ? { ...generated.recipeInput, status: uploadStatus }
     : generated.recipeInput;
@@ -705,12 +865,6 @@ function isInteractiveTerminal(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 
-function browserSandboxFromEnv(): boolean | undefined {
-  const raw = process.env.SMART_RECIPE_BROWSER_SANDBOX;
-  if (raw === undefined) return undefined;
-  return /^(1|true|yes|on)$/i.test(raw);
-}
-
 async function buildDoctorReport(device: "mc" | "tm", options: Record<string, unknown>) {
   const adapter = getDeviceAdapter(device);
   const cookieKey = cookieKeyForDevice(device);
@@ -772,52 +926,9 @@ async function listRecipesCommand(options: Record<string, unknown>) {
   const activeCookie = await resolveCookieForDevice(device, options);
   const size = Number(options.limit ?? options.size ?? 20);
   const result = await adapter.listDrafts({ cookie: activeCookie, size });
+  const list = summarizeRecipeList(result, { search: typeof options.search === "string" ? options.search : undefined });
 
-  let recipes: unknown[] = [];
-  let total = 0;
-  let totalPage = 1;
-
-  const data = getRecord(result, "data");
-  recipes = getArray(data, "recipes");
-  total = getNumber(data, "total") ?? recipes.length;
-  totalPage = getNumber(data, "totalPage") ?? 1;
-
-  if (options.search) {
-    const query = String(options.search).toLowerCase();
-    recipes = recipes.filter((recipe) =>
-      String(getString(recipe, "title") ?? "").toLowerCase().includes(query) ||
-      String(getString(recipe, "id") ?? "").toLowerCase().includes(query)
-    );
-  }
-
-  const formattedRecipes = recipes.map((recipe) => {
-    const rawId = isRecord(recipe) ? (recipe.id ?? recipe.recipeId) : undefined;
-    const id = rawId !== undefined && rawId !== null ? String(rawId) : (getString(recipe, "id") ?? undefined);
-    const rawDeviceTypes = getArray(recipe, "deviceTypes");
-    const deviceTypes = rawDeviceTypes.map((dt) => {
-      if (typeof dt === "string") return dt;
-      if (isRecord(dt) && typeof dt.name === "string") return dt.name;
-      return String(dt);
-    });
-    return {
-      id,
-      title: getString(recipe, "title"),
-      status: getString(recipe, "status"),
-      updatedAt: getString(recipe, "updatedAt"),
-      deviceTypes,
-      ingredientCount: getNumber(recipe, "ingredientCount"),
-      stepCount: getNumber(recipe, "stepCount"),
-      hasImage: Boolean(isRecord(recipe) ? recipe.hasImage : false),
-      hasHints: Boolean(isRecord(recipe) ? recipe.hasHints : false),
-      recipeUrl: getString(recipe, "recipeUrl")
-    };
-  });
-
-  printOutput({
-    total,
-    totalPage,
-    recipes: formattedRecipes
-  }, program.optsWithGlobals().json, (v) => formatRecipesForTerminal(device, v));
+  printOutput(list, program.optsWithGlobals().json, (v) => formatRecipesForTerminal(device, v));
 }
 
 // ─── Other commands ───────────────────────────────────────────────────────────
@@ -984,19 +1095,34 @@ program
 
 program
   .command("validate")
-  .description("Validate a generated Smart recipe input JSON file.")
-  .argument("<file>", "JSON file")
-  .option("--device <device>", "Force validate against a specific device ('mc' or 'tm')")
-  .action(async (file, options) => {
-    const value = JSON.parse(await readFile(file, "utf8"));
-    const deviceId = options.device || detectDeviceFromRecipe(value);
-    const adapter = getDeviceAdapter(deviceId);
-    const validation = adapter.validateInput(value);
-    printOutput(validation, program.optsWithGlobals().json);
-    if (validation.ok && !program.optsWithGlobals().json) {
-      console.log(adapter.formatInputForTerminal(value));
-    }
+  .description("Validate a Smart recipe input JSON file with the same checks used for generation and upload.")
+  .argument("<file>", "JSON file ('-' reads stdin)")
+  .option("--source-url <url>", "Original recipe URL: enables source-fidelity checks for official Cookidoo recipes");
+addAssistantDeviceOptions(program.commands.at(-1)!);
+program.commands.at(-1)!.action(async (file: string, options) => {
+  if (options.mcFoodProcessor) {
+    process.env.MC_HAS_FOOD_PROCESSOR = String(options.mcFoodProcessor).toLowerCase();
+  }
+  const value = await readJsonInput(file);
+  const deviceId = options.device === "tm" || options.device === "mc" ? options.device : detectRecipeDevice(value);
+  const adapter = getDeviceAdapter(deviceId);
+  const sourceUrl = typeof options.sourceUrl === "string" ? options.sourceUrl : undefined;
+  const page = sourceUrl && sourceFidelityChecksApply(deviceId, sourceUrl)
+    ? await retrieveSourcePage(sourceUrl, options, { includeImageBytes: false })
+    : undefined;
+  const check = checkRecipeInput(adapter, value, {
+    excludeModes: resolveExcludedModes(deviceId, options),
+    sourceUrl,
+    sourceMarkdown: page?.markdown
   });
+  const result = check.kind === "ok"
+    ? { ok: true, errors: [], recipeInput: check.recipeInput }
+    : { ok: false, errors: check.errors };
+  printOutput(result, program.optsWithGlobals().json);
+  if (check.kind === "ok" && !program.optsWithGlobals().json) {
+    console.log(adapter.formatInputForTerminal(check.recipeInput));
+  }
+});
 
 program
   .command("schema")

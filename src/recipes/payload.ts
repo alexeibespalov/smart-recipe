@@ -45,7 +45,8 @@ export function createSmartRecipePayload(options: CreateSmartRecipePayloadOption
         preparationTime: options.servingSize.preparationTime,
         readyInTime: options.servingSize.readyInTime,
         ingredientGroups: options.servingSize.ingredientGroups.map((group, groupIndex) => ({
-          name: group.name ?? (groupIndex === 0 ? catalog.defaultIngredientGroupName : ""),
+          // Monsieur Cuisine refuses to publish a recipe with an unnamed ingredient group.
+          name: group.name?.trim() || (groupIndex === 0 ? catalog.defaultIngredientGroupName : `${catalog.defaultIngredientGroupName} ${groupIndex + 1}`),
           isDefault: groupIndex === 0,
           order: groupIndex,
           ingredients: group.ingredients.map((ingredient, ingredientIndex) => ({

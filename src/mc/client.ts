@@ -214,6 +214,20 @@ export class MonsieurCuisineSmartClient {
     return recipe;
   }
 
+  /**
+   * Changes a recipe's status like the web editor does. Creating a recipe always yields a draft; publishing it
+   * privately (`private-publish`, no review) is this second step and runs the server's completeness checks.
+   */
+  async setRecipeStatus(recipeId: string | number, status: "private-publish" | "draft" | "trash", { locale = this.locale } = {}): Promise<void> {
+    await this.proxy({
+      endpoint: `api/v3/auth/user/recipes/${recipeId}`,
+      method: "PATCH",
+      locale,
+      payload: { status },
+      referer: this.recipeUrl(Number(recipeId), locale)
+    });
+  }
+
   async requestImageUploadUrl({ fileName, mimeType = "image/jpeg", locale = this.locale }: { fileName: string; mimeType?: string; locale?: SupportedLocale }): Promise<{ url: string; mediaId: number }> {
     const result = await this.proxy({
       endpoint: "api/v1/media/image/upload-url",

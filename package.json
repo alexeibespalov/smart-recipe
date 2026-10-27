@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "smart-recipe": "./dist/cli/main.js"
+    "smart-recipe": "./dist/cli/main.js",
+    "smart-recipe-mcp": "./dist/mcp/main.js"
   },
   "files": [
     "dist",
@@ -58,6 +59,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "build:claude": "node scripts/build-claude.mjs",
     "check": "tsc --noEmit",
     "prepare": "npm run build",
     "test": "vitest run",
@@ -81,6 +83,8 @@
     "typebox": "^1.0.55"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2",
+    "@modelcontextprotocol/ext-apps": "2.0.3",
     "@types/marked-terminal": "^6.1.1",
     "@types/node": "^22.13.10",
     "tsup": "^8.4.0",

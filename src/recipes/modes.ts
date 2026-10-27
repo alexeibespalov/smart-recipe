@@ -1,5 +1,6 @@
 import {
   SMART_FERMENTATION_TEMPERATURE_STEPS,
+  SMART_HEAT_WATER_TEMPERATURE_STEPS,
   SMART_HEATING_TEMPERATURE_STEPS,
   SMART_LOW_TEMPERATURE_STEPS,
   SMART_MODE_GUIDE,
@@ -26,10 +27,15 @@ export function promptModeToRawMode(input?: PromptModeInput | null): RawSmartMod
   switch (input.type) {
     case "manualCooking": {
       const temperature = input.temperature ?? 0;
-      const speed = input.speed ?? 0;
+      const speed = input.speed ?? 1;
+      const time = secondsFromParts(input.minutes ?? 0, input.seconds ?? 0);
       assertOneOf(temperature, SMART_HEATING_TEMPERATURE_STEPS, "manualCooking.temperature");
-      assertIntegerRange(secondsFromParts(input.minutes ?? 0, input.seconds ?? 0), 1, 5940, "manualCooking.time");
-      assertIntegerRange(speed, 0, 10, "manualCooking.speed");
+      assertIntegerRange(time, 1, 5940, "manualCooking.time");
+      assertIntegerRange(speed, SMART_MODE_GUIDE.manualCooking.speed.min, SMART_MODE_GUIDE.manualCooking.speed.max, "manualCooking.speed");
+      const { fastSpeed } = SMART_MODE_GUIDE.manualCooking;
+      if (speed >= fastSpeed.minSpeed && time > fastSpeed.maxSeconds) {
+        throw new TypeError(`manualCooking.time must be ${fastSpeed.maxSeconds} seconds (10 minutes) or less at speed ${fastSpeed.minSpeed}-10.`);
+      }
       if (temperature > 0 && speed > 3) {
         throw new TypeError("manualCooking.speed must be 3 or lower when heating is enabled.");
       }
@@ -43,7 +49,7 @@ export function promptModeToRawMode(input?: PromptModeInput | null): RawSmartMod
           {
             order: 0,
             temperature,
-            time: secondsFromParts(input.minutes ?? 0, input.seconds ?? 0),
+            time,
             speed,
             clockwise: (input.rotationDirection ?? "right") === "right"
           }
@@ -116,6 +122,16 @@ export function promptModeToRawMode(input?: PromptModeInput | null): RawSmartMod
       return timeMode(SMART_MODE_TYPES.puree, input, 30, 120);
     case "smoothie":
       return timeMode(SMART_MODE_TYPES.smoothie, input, 30, 120);
+    case "heatWater": {
+      // The device heats until the target temperature is reached, so the step stores only a temperature.
+      const temperature = input.temperature ?? 100;
+      assertOneOf(temperature, SMART_HEAT_WATER_TEMPERATURE_STEPS, "heatWater.temperature");
+      return {
+        type: SMART_MODE_TYPES.heatWater,
+        modeSetting: null as null,
+        deviceSettings: [{ order: 0, temperature }]
+      };
+    }
     default:
       assertNever(input);
   }

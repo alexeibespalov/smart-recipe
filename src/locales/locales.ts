@@ -27,7 +27,6 @@ export interface LocaleText {
     preheatSteamingHot: string;
     spatulaScrape: string;
     liftSimmeringBasket: string;
-    useBasketAsSplashGuard: string;
     grossNetWeightTemplate: string;
     hotPureeingSafety: string;
     preCutIngredients: string;
@@ -93,7 +92,6 @@ export const localeTexts: Record<SupportedLocale, LocaleText> = {
       preheatSteamingHot: "při dotazu na předehřátí zvolte 'Ne'",
       spatulaScrape: "stěrkou setřete stěny nádoby dolů",
       liftSimmeringBasket: "vyjměte vařicí košík pomocí stěrky",
-      useBasketAsSplashGuard: "položte vařicí košík na víko jako ochranu proti vystříknutí",
       grossNetWeightTemplate: "Oloupat/očistit {ingredient} (cca {net} g). Do mixovací nádoby přidejte {net} g připraveného/ých {ingredient}.",
       hotPureeingSafety: "Po mixování horkých ingrediencí vyčkejte cca 10 sekund před otevřením víka.",
       preCutIngredients: "nakrájet na kousky o velikosti cca 3-4 cm",
@@ -157,7 +155,6 @@ export const localeTexts: Record<SupportedLocale, LocaleText> = {
       preheatSteamingHot: "wybierz 'Nie' przy pytaniu o podgrzewanie",
       spatulaScrape: "zgarnąć składniki szpatułką ze ścianek naczynia",
       liftSimmeringBasket: "wyjąć koszyczek za pomocą szpatułki",
-      useBasketAsSplashGuard: "nałożyć koszyczek na pokrywę jako osłonę przed pryskaniem",
       grossNetWeightTemplate: "Obrać/oczyścić {ingredient} (daje ok. {net} g). Dodać {net} g przygotowanego/ych {ingredient} do naczynia.",
       hotPureeingSafety: "Po miksowaniu gorących składników odczekać ok. 10 sekund przed otwarciem pokrywy.",
       preCutIngredients: "pokroić na kawałki o wielkości ok. 3-4 cm",
@@ -221,7 +218,6 @@ export const localeTexts: Record<SupportedLocale, LocaleText> = {
       preheatSteamingHot: "bei der Abfrage zu Aufheizen 'Nein' wählen",
       spatulaScrape: "mit dem Spatel nach unten schieben",
       liftSimmeringBasket: "den Kocheinsatz mithilfe des Spatels herausnehmen",
-      useBasketAsSplashGuard: "den Kocheinsatz als Spritzschutz auf den Deckel setzen",
       grossNetWeightTemplate: "{ingredient} schälen/putzen (ergibt ca. {net} g). {net} g vorbereitete(s) {ingredient} in den Mixbehälter geben.",
       hotPureeingSafety: "Nach dem Mixen heißer Zutaten ca. 10 Sekunden warten, bevor der Deckel geöffnet wird.",
       preCutIngredients: "in ca. 3–4 cm große Stücke schneiden",
@@ -285,7 +281,6 @@ export const localeTexts: Record<SupportedLocale, LocaleText> = {
       preheatSteamingHot: "sélectionner 'Non' à la question sur le préchauffage",
       spatulaScrape: "racler les parois à l'aide de la spatule",
       liftSimmeringBasket: "retirer le panier cuisson à l'aide de la spatule",
-      useBasketAsSplashGuard: "placer le panier cuisson sur le couvercle pour éviter les projections",
       grossNetWeightTemplate: "Éplucher/parer {ingredient} (donne environ {net} g). Ajouter {net} g de {ingredient} préparé(s) dans le bol.",
       hotPureeingSafety: "Après avoir mixé des ingrédients chauds, attendre environ 10 secondes avant d'ouvrir le couvercle.",
       preCutIngredients: "couper en morceaux d'environ 3 à 4 cm",
@@ -301,7 +296,7 @@ export const localeTexts: Record<SupportedLocale, LocaleText> = {
   "en-US": {
     locale: "en-US",
     outputLanguage: "English",
-    unitConvention: "English recipe conventions: g, kg, ml, tsp, tbsp, pinch, pieces; use ml only when grams would be misleading.",
+    unitConvention: "English recipe conventions: g, kg, ml, tsp, tbsp, pinch, pieces; use ml only when grams would be misleading. Never cups, oz, lb or sticks (convert them as described below).",
     servingUnitExamples: "servings, jars, pieces",
     categoryLabel: "English site IDs",
     defaultIngredientGroupName: "Ingredients",
@@ -331,34 +326,33 @@ export const localeTexts: Record<SupportedLocale, LocaleText> = {
       vegetarian: "Vegetarian"
     },
     accessoryTerms: {
-      blade: "blade insert",
+      blade: "blade assembly",
       reverse: "reverse",
-      butterflyWhisk: "butterfly whisk",
-      simmeringBasket: "simmering basket",
-      steamerAttachment: "steamer attachment",
-      steamerInsert: "flat steamer insert",
-      measuringCup: "measuring cup",
+      butterflyWhisk: "mixer attachment",
+      simmeringBasket: "cooking pot",
+      steamerAttachment: "deep steamer attachment",
+      steamerInsert: "shallow steamer attachment",
+      measuringCup: "measuring beaker",
       spatula: "spatula",
       turbo: "Turbo"
     },
     accessoryPhrases: {
-      insertButterflyWhisk: "insert the butterfly whisk",
-      insertSimmeringBasket: "hang the simmering basket",
-      attachSteamerAttachment: "attach the steamer attachment",
+      insertButterflyWhisk: "insert the mixer attachment",
+      insertSimmeringBasket: "put the cooking pot into the blender jug",
+      attachSteamerAttachment: "attach the deep steamer attachment",
       preheatSteamingCold: "select 'Yes' when asked to preheat",
       preheatSteamingHot: "select 'No' when asked to preheat",
-      spatulaScrape: "scrape down the sides of the bowl using the spatula",
-      liftSimmeringBasket: "remove the simmering basket using the spatula",
-      useBasketAsSplashGuard: "place the simmering basket on the lid as a splash guard",
-      grossNetWeightTemplate: "Peel/trim {ingredient} (yields approx. {net} g). Add {net} g prepared {ingredient} to the bowl.",
+      spatulaScrape: "scrape down the sides of the blender jug using the spatula",
+      liftSimmeringBasket: "lift out the cooking pot with the hook on the spatula",
+      grossNetWeightTemplate: "Peel/trim {ingredient} (yields approx. {net} g). Add {net} g prepared {ingredient} to the blender jug.",
       hotPureeingSafety: "After pureeing hot contents, wait about 10 seconds before opening the lid.",
       preCutIngredients: "cut into pieces of approx. 3-4 cm",
-      minLiquidSimmeringBasket: "add at least 500 ml of liquid to the mixing bowl",
-      emulsionOilDrip: "slowly pour the oil onto the lid so it trickles past the measuring cup into the bowl",
-      cleanDryFatFree: "The mixing bowl and butterfly whisk must be absolutely clean, dry, and fat-free.",
+      minLiquidSimmeringBasket: "add at least 500 ml of liquid to the blender jug",
+      emulsionOilDrip: "slowly pour the oil onto the lid so it trickles past the measuring beaker into the blender jug",
+      cleanDryFatFree: "The blender jug and mixer attachment must be absolutely clean, dry, and fat-free.",
       dropOntoRunningBlades: "drop through the lid opening onto the running blades",
-      removeMeasuringCup: "remove the measuring cup",
-      steamerSetup: "remove the mixing bowl lid and lock the steamer attachment directly onto the mixing bowl",
+      removeMeasuringCup: "remove the measuring beaker",
+      steamerSetup: "remove the blender jug lid and lock the deep steamer attachment directly onto the blender jug",
       lookAheadPrepTemplate: "Use the cooking time in the following step to {task}."
     }
   },
@@ -413,7 +407,6 @@ export const localeTexts: Record<SupportedLocale, LocaleText> = {
       preheatSteamingHot: "selezionare 'No' alla domanda sul preriscaldamento",
       spatulaScrape: "spingere verso il basso con la spatola",
       liftSimmeringBasket: "rimuovere il cestello di cottura con la spatola",
-      useBasketAsSplashGuard: "posizionare il cestello di cottura sul coperchio come paraspruzzi",
       grossNetWeightTemplate: "Sbucciare/pulire {ingredient} (circa {net} g). Aggiungere {net} g di {ingredient} preparato/i nel boccale.",
       hotPureeingSafety: "Dopo aver frullato ingredienti caldi, attendere circa 10 secondi prima di aprire il coperchio.",
       preCutIngredients: "tagliare a pezzi di circa 3-4 cm",

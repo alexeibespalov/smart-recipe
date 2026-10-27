@@ -1,0 +1,108 @@
+{
+  "manifest_version": "0.3",
+  "name": "smart-cooker",
+  "display_name": "Smart Cooker",
+  "version": "0.2.0",
+  "description": "Let Claude write recipes for your Monsieur Cuisine Smart or Thermomix and send them straight to your cooker.",
+  "long_description": "Share any recipe link or paste a recipe, and Claude turns it into a guided machine recipe — weighing, chopping, sautéing, kneading and steaming steps with real times, temperatures and speeds — in your language.\n\nClaude writes the recipe itself; this extension fetches the source, checks Claude's recipe against the device's physical limits (jug capacity, speed limits while heating, accessory modes you don't own) and uploads it to your Monsieur Cuisine (Lidl) or Cookidoo (Thermomix) account. No AI API key is needed.\n\nMonsieur Cuisine recipes are published to your private library so they appear on the cooker touchscreen; Thermomix recipes go to Cookidoo Created Recipes. Log in once through the official login page that opens in a browser window; the session is stored locally in ~/.smart-recipe.",
+  "author": {
+    "name": "alexeibespalov"
+  },
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server/index.js"
+      ],
+      "env": {
+        "TARGET_DEVICE": "${user_config.device}",
+        "MC_LOCALE": "${user_config.locale}",
+        "TM_LOCALE": "${user_config.locale}",
+        "TM_VERSION": "${user_config.tm_version}",
+        "MC_HAS_FOOD_PROCESSOR": "${user_config.mc_food_processor}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "prepare_recipe",
+      "description": "Fetch a recipe and return the device rules, schema and source text for Claude to write the cooker recipe."
+    },
+    {
+      "name": "validate_recipe",
+      "description": "Check Claude's recipe against the device schema and physical limits."
+    },
+    {
+      "name": "upload_recipe",
+      "description": "Send a validated recipe to the cooker account."
+    },
+    {
+      "name": "list_recipes",
+      "description": "List recipes and drafts on the cooker account."
+    },
+    {
+      "name": "check_connection",
+      "description": "Check the cooker account session and active settings."
+    },
+    {
+      "name": "connect_account",
+      "description": "Open the official Monsieur Cuisine / Cookidoo login window."
+    },
+    {
+      "name": "job_status",
+      "description": "Get the result of a long-running step."
+    }
+  ],
+  "user_config": {
+    "device": {
+      "type": "string",
+      "title": "Default cooker",
+      "description": "mc = Monsieur Cuisine Smart, tm = Thermomix (Cookidoo).",
+      "default": "mc",
+      "required": false
+    },
+    "locale": {
+      "type": "string",
+      "title": "Recipe language",
+      "description": "Language for new recipes: en-US, de-DE, fr-FR, it-IT, pl-PL or cs-CZ. You can still ask Claude for another language per recipe.",
+      "default": "en-US",
+      "required": false
+    },
+    "mc_food_processor": {
+      "type": "boolean",
+      "title": "I own the Monsieur Cuisine food processor attachment",
+      "description": "Allows recipes to use the food-processor mode.",
+      "default": false,
+      "required": false
+    },
+    "tm_version": {
+      "type": "string",
+      "title": "Thermomix model",
+      "description": "tm7, tm6 or tm5 (only used for Thermomix).",
+      "default": "tm6",
+      "required": false
+    }
+  },
+  "keywords": [
+    "recipes",
+    "cooking",
+    "monsieur cuisine",
+    "thermomix",
+    "cookidoo",
+    "lidl"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=20.18.0"
+    }
+  }
+}

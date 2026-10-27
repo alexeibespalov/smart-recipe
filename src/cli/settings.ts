@@ -1,6 +1,8 @@
 import process from "node:process";
 import { getTmCookie, getTmLocale, upsertDotEnvValue } from "../config/env.js";
-import { supportedLocales } from "../catalogs/index.js";
+import { normalizeSupportedLocale, supportedLocales } from "../catalogs/index.js";
+
+export { normalizeSupportedLocale };
 import type { SupportedLocale } from "../catalogs/types.js";
 import type { RecipeSource } from "../sources/index.js";
 import { confirm, select } from "./prompts.js";
@@ -128,16 +130,6 @@ export async function getOrPromptTargetLocale(
   return { locale: selectedLocale, prompted: true };
 }
 
-export function normalizeSupportedLocale(value: unknown): SupportedLocale | undefined {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  const alias = localeAliases[normalized.toLowerCase()];
-  if (alias) return alias;
-  return (supportedLocales as readonly string[]).includes(normalized)
-    ? normalized as SupportedLocale
-    : undefined;
-}
-
 const localeChoiceLabels: Record<SupportedLocale, string> = {
   "de-DE": "German (Germany)",
   "en-US": "English (US)",
@@ -147,21 +139,6 @@ const localeChoiceLabels: Record<SupportedLocale, string> = {
   "cs-CZ": "Czech (Czechia)",
 };
 
-const localeAliases: Record<string, SupportedLocale> = {
-  cs: "cs-CZ",
-  "cs-cz": "cs-CZ",
-  cz: "cs-CZ",
-  de: "de-DE",
-  "de-de": "de-DE",
-  en: "en-US",
-  "en-us": "en-US",
-  fr: "fr-FR",
-  "fr-fr": "fr-FR",
-  it: "it-IT",
-  "it-it": "it-IT",
-  pl: "pl-PL",
-  "pl-pl": "pl-PL",
-};
 
 function localeEnvKeyForDevice(device: "mc" | "tm"): "MC_LOCALE" | "TM_LOCALE" {
   return device === "tm" ? "TM_LOCALE" : "MC_LOCALE";

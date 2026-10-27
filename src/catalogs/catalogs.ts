@@ -122,3 +122,30 @@ export function categoryPromptText(locale = "de-DE"): string {
     .map((category) => `- ${category.id}: ${category.label} (${category.key}) - ${category.description}`)
     .join("\n");
 }
+
+const localeAliases: Record<string, SupportedLocale> = {
+  cs: "cs-CZ",
+  "cs-cz": "cs-CZ",
+  cz: "cs-CZ",
+  de: "de-DE",
+  "de-de": "de-DE",
+  en: "en-US",
+  "en-us": "en-US",
+  fr: "fr-FR",
+  "fr-fr": "fr-FR",
+  it: "it-IT",
+  "it-it": "it-IT",
+  pl: "pl-PL",
+  "pl-pl": "pl-PL",
+};
+
+/** Accepts a supported locale or a short alias (de, en-us, cz, ...) and returns the canonical locale. */
+export function normalizeSupportedLocale(value: unknown): SupportedLocale | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  const alias = localeAliases[normalized.toLowerCase()];
+  if (alias) return alias;
+  return (supportedLocales as readonly string[]).includes(normalized)
+    ? normalized as SupportedLocale
+    : undefined;
+}

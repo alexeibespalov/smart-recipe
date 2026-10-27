@@ -13,7 +13,8 @@ export default defineConfig({
     "src/recipes/index.ts",
     "src/retriever/index.ts",
     "src/sources/index.ts",
-    "src/cli/main.ts"
+    "src/cli/main.ts",
+    "src/mcp/main.ts"
   ],
   format: ["esm"],
   dts: true,

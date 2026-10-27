@@ -1,3 +1,4 @@
+import process from "node:process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -92,3 +93,9 @@ export function mcHasFoodProcessor(): boolean {
   return val === "true";
 }
 
+/** SMART_RECIPE_BROWSER_SANDBOX=true|false overrides Playwright's Chromium sandbox; unset keeps its default. */
+export function browserSandboxFromEnv(): boolean | undefined {
+  const raw = process.env.SMART_RECIPE_BROWSER_SANDBOX;
+  if (raw === undefined) return undefined;
+  return /^(1|true|yes|on)$/i.test(raw);
+}

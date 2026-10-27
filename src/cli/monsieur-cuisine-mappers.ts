@@ -87,5 +87,6 @@ function mapMode(mode: unknown): McMode {
   if (type === "food_cooking" || type === "foodProcessor") return { type: "foodProcessor", minutes: mins, seconds: secs };
   if (type === "puree") return { type: "puree", minutes: mins, seconds: secs };
   if (type === "smoothie") return { type: "smoothie", minutes: mins, seconds: secs };
+  if (type === "heat_water" || type === "heatWater") return { type: "heatWater", temperature: getNumber(settings, "temperature") ?? 100 } as McMode;
   return { type: "none" };
 }

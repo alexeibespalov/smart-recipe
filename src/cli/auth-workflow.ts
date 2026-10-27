@@ -1,5 +1,5 @@
 import process from "node:process";
-import { upsertDotEnvValue } from "../config/env.js";
+import { browserSandboxFromEnv, upsertDotEnvValue } from "../config/env.js";
 import { CookieAuthProvider, type AuthProvider } from "../mc/auth.js";
 import type { DeviceAdapter } from "../devices/adapter.js";
 import type { SupportedLocale } from "../catalogs/types.js";
@@ -304,12 +304,6 @@ function makeSilentBrowserAuthProvider(adapter: CliAuthAdapter, configPath: stri
       return { cookie: result.cookie, source: "cookie" };
     }
   };
-}
-
-function browserSandboxFromEnv(): boolean | undefined {
-  const raw = process.env.SMART_RECIPE_BROWSER_SANDBOX;
-  if (raw === undefined) return undefined;
-  return /^(1|true|yes|on)$/i.test(raw);
 }
 
 async function maybeSaveSessionCookie(

@@ -28,6 +28,8 @@ The project uses strict domain boundaries. Never bypass these boundaries.
 - **`src/pipeline/`**: High-level workflow orchestration (`generateSmartRecipe`, `uploadSmartRecipe`).
 - **`src/recipes/`**: Schemas, normalization, terminal printing, and mode abstractions.
 - **`src/llm/`**: OpenAI API interactions, schema translation, and prompt building.
+- **`src/mcp/`**: Stdio MCP server (Claude Desktop extension, `smart-recipe-mcp`) exposing the assistant-authored workflow (`prepare` → `validate` → `upload`) from `src/pipeline/assistant-recipes.ts`. _Rule: it never calls the built-in LLM, and only protocol messages may be written to stdout._
+- **`claude/`**: Claude Desktop extension manifest and icon; `npm run build:claude` packages them with the bundled MCP server (`src/mcp/`, whose tool descriptions/results carry the conversation workflow).
 
 ## 🔑 Core Design Principles
 

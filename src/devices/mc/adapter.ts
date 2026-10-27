@@ -15,6 +15,7 @@ import type { AuthProvider } from "../../mc/auth.js";
 import { RetrievedRecipeImageProvider, type RecipeImageProvider } from "../../pipeline/images.js";
 import type { SupportedLocale } from "../../catalogs/types.js";
 import type { SmartRecipeLogger } from "../../logging/logger.js";
+import { getString, isRecord } from "../../utils/unknown.js";
 
 export class MonsieurCuisineAdapter implements DeviceAdapter<RecipeInput, SmartRecipePayload> {
   readonly id = "mc" as const;
@@ -101,6 +102,7 @@ export class MonsieurCuisineAdapter implements DeviceAdapter<RecipeInput, SmartR
         hasImage: recipe.hasImage,
         hasHints: recipe.hasHints,
         recipeUrl: Number.isFinite(numericId) ? client.recipeUrl(numericId) : recipe.recipeUrl,
+        thumbnailUrl: recipe.thumbnail?.landscapeMedia?.url ?? recipe.thumbnail?.portraitMedia?.url ?? undefined,
       };
     });
 
@@ -193,6 +195,19 @@ export class MonsieurCuisineAdapter implements DeviceAdapter<RecipeInput, SmartR
     const id = typeof draft === "object" && draft && "id" in draft ? Number((draft as { id: unknown }).id) : undefined;
     const recipeUrl = id ? client.recipeUrl(id, locale) : undefined;
 
+    // The API always creates a draft; publishing privately is a separate status change.
+    if (id && uploadPayload.status === "private-publish" && getString(draft, "status") !== "private-publish") {
+      try {
+        await client.setRecipeStatus(id, "private-publish", { locale });
+        draft = { ...(isRecord(draft) ? draft : {}), status: "private-publish" };
+        logger.info({ id }, "published Monsieur Cuisine recipe privately");
+      } catch (error) {
+        const reason = error instanceof MonsieurCuisineApiError ? getString(error.response, "message") ?? error.message : String(error);
+        logger.warn({ id, reason }, "Monsieur Cuisine kept the recipe as a draft");
+        draft = { ...(isRecord(draft) ? draft : {}), status: "draft", publishError: reason };
+      }
+    }
+
     return {
       uploadedImage,
       recipeImage: recipeImage ? { ...recipeImage, bytes: recipeImage.bytes.byteLength } : undefined,
@@ -214,4 +229,5 @@ interface McDraftRecipe {
   hasImage?: boolean;
   hasHints?: boolean;
   recipeUrl?: string;
+  thumbnail?: { landscapeMedia?: { url?: string } | null; portraitMedia?: { url?: string } | null } | null;
 }

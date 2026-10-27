@@ -28,7 +28,7 @@ const ansi = {
   brightWhite: "\x1b[97m"
 };
 
-interface LocaleTranslation {
+export interface LocaleTranslation {
   speed: string;
   prepTime: string;
   readyIn: string;
@@ -70,6 +70,7 @@ interface LocaleTranslation {
     foodProcessor: string;
     puree: string;
     smoothie: string;
+    heatWater: string;
   };
   timeUnits: {
     hour: string;
@@ -116,7 +117,8 @@ const translations: Record<string, LocaleTranslation> = {
       riceCooking: "Reiskochen",
       foodProcessor: "Food Processor",
       puree: "Pürieren",
-      smoothie: "Smoothie"
+      smoothie: "Smoothie",
+      heatWater: "Wasser erhitzen"
     },
     timeUnits: { hour: "Std.", minute: "Min.", second: "Sek." },
     eggSizes: { small: "S", medium: "M", large: "L" },
@@ -157,7 +159,8 @@ const translations: Record<string, LocaleTranslation> = {
       riceCooking: "Rice Cooking",
       foodProcessor: "Food Processor",
       puree: "Puree",
-      smoothie: "Smoothie"
+      smoothie: "Smoothie",
+      heatWater: "Heat Water"
     },
     timeUnits: { hour: "h", minute: "m", second: "s" },
     eggSizes: { small: "small", medium: "medium", large: "large" },
@@ -198,7 +201,8 @@ const translations: Record<string, LocaleTranslation> = {
       riceCooking: "Cuisson riz",
       foodProcessor: "Robot Culinaire",
       puree: "Purée",
-      smoothie: "Smoothie"
+      smoothie: "Smoothie",
+      heatWater: "Chauffer l'eau"
     },
     timeUnits: { hour: "h", minute: "min", second: "s" },
     eggSizes: { small: "petit", medium: "moyen", large: "grand" },
@@ -239,7 +243,8 @@ const translations: Record<string, LocaleTranslation> = {
       riceCooking: "Cuocere riso",
       foodProcessor: "Robot da cucina",
       puree: "Frullare",
-      smoothie: "Smoothie"
+      smoothie: "Smoothie",
+      heatWater: "Riscaldare l'acqua"
     },
     timeUnits: { hour: "h", minute: "min", second: "s" },
     eggSizes: { small: "piccolo", medium: "medio", large: "grande" },
@@ -280,7 +285,8 @@ const translations: Record<string, LocaleTranslation> = {
       riceCooking: "Gotowanie ryżu",
       foodProcessor: "Malakser",
       puree: "Przecieranie",
-      smoothie: "Smoothie"
+      smoothie: "Smoothie",
+      heatWater: "Podgrzewanie wody"
     },
     timeUnits: { hour: "godz", minute: "min", second: "sek" },
     eggSizes: { small: "małe", medium: "średnie", large: "duże" },
@@ -321,7 +327,8 @@ const translations: Record<string, LocaleTranslation> = {
       riceCooking: "Vaření rýže",
       foodProcessor: "Kuchyňský robot",
       puree: "Pyré",
-      smoothie: "Smoothie"
+      smoothie: "Smoothie",
+      heatWater: "Ohřev vody"
     },
     timeUnits: { hour: "hod", minute: "min", second: "sek" },
     eggSizes: { small: "malé", medium: "střední", large: "velké" },
@@ -330,7 +337,7 @@ const translations: Record<string, LocaleTranslation> = {
   }
 };
 
-function getTranslation(locale: string): LocaleTranslation {
+export function getTranslation(locale: string): LocaleTranslation {
   return translations[locale] || translations["en-US"];
 }
 
@@ -343,14 +350,14 @@ function drawBox(text: string, titleColor: string = ansi.bold + ansi.brightMagen
   ].join("\n");
 }
 
-function formatDuration(minutes: number, seconds: number, t: LocaleTranslation): string {
+export function formatDuration(minutes: number, seconds: number, t: LocaleTranslation): string {
   const parts: string[] = [];
   if (minutes > 0) parts.push(`${minutes}${t.timeUnits.minute}`);
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}${t.timeUnits.second}`);
   return parts.join(" ");
 }
 
-function formatMinutesOnly(totalMinutes: number, t: LocaleTranslation): string {
+export function formatMinutesOnly(totalMinutes: number, t: LocaleTranslation): string {
   if (totalMinutes >= 60) {
     const hours = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
@@ -482,6 +489,8 @@ export function formatRecipeTerminal(recipe: RecipeInput): string {
         params.push(`${mode.seconds ?? 0}${t.timeUnits.second}`);
       } else if (mode.type === "solidDoughKnead" || mode.type === "softDoughKnead" || mode.type === "liquidDoughKnead" || mode.type === "steam" || mode.type === "riceCooking" || mode.type === "foodProcessor" || mode.type === "puree" || mode.type === "smoothie") {
         params.push(formatDuration(mode.minutes ?? 0, mode.seconds ?? 0, t));
+      } else if (mode.type === "heatWater") {
+        params.push(`${mode.temperature}°C`);
       } else if (mode.type === "sousVide" || mode.type === "slowCooking" || mode.type === "fermentation") {
         if (mode.temperature !== undefined) params.push(`${mode.temperature}°C`);
         params.push(formatDuration(mode.minutes ?? 0, mode.seconds ?? 0, t));

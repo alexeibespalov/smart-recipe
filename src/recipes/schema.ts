@@ -2,6 +2,7 @@ import Type, { type Static } from "typebox";
 import { categoryMeta, localeComplexityIds } from "../catalogs/catalogs.js";
 import {
   SMART_FERMENTATION_TEMPERATURE_STEPS,
+  SMART_HEAT_WATER_TEMPERATURE_STEPS,
   SMART_HEATING_TEMPERATURE_STEPS,
   SMART_LOW_TEMPERATURE_STEPS
 } from "./constants.js";
@@ -72,7 +73,7 @@ const RecipeStepModeSchemaManualCookingRight = Type.Object(
     type: Type.Literal("manualCooking"),
     temperature: Type.Literal(0),
     ...timeFields(99, "Whole minutes for manual cooking. Combined time must be 1-5940 seconds."),
-    speed: Type.Integer({ minimum: 0, maximum: 10, description: "Manual cooking speed without heating and with right rotation." }),
+    speed: Type.Integer({ minimum: 1, maximum: 10, description: "Manual cooking speed without heating and with right rotation. Speed 7-10 allows at most 10 minutes." }),
     rotationDirection: Type.Literal("right", { description: "Blade direction for manual cooking." })
   },
   ModeObjectOptions
@@ -83,7 +84,7 @@ const RecipeStepModeSchemaManualCookingLeft = Type.Object(
     type: Type.Literal("manualCooking"),
     temperature: Type.Literal(0),
     ...timeFields(99, "Whole minutes for manual cooking. Combined time must be 1-5940 seconds."),
-    speed: Type.Integer({ minimum: 0, maximum: 3, description: "Manual cooking speed. Left rotation is limited to speed 0-3." }),
+    speed: Type.Integer({ minimum: 1, maximum: 3, description: "Manual cooking speed. Left rotation is limited to speed 1-3." }),
     rotationDirection: Type.Literal("left", { description: "Blade direction for manual cooking." })
   },
   ModeObjectOptions
@@ -94,7 +95,7 @@ const RecipeStepModeSchemaManualCookingHeating = Type.Object(
     type: Type.Literal("manualCooking"),
     temperature: NonZeroHeatingTemperatureSchema,
     ...timeFields(99, "Whole minutes for manual cooking. Combined time must be 1-5940 seconds."),
-    speed: Type.Integer({ minimum: 0, maximum: 3, description: "Manual cooking speed. Heating is limited to speed 0-3." }),
+    speed: Type.Integer({ minimum: 1, maximum: 3, description: "Manual cooking speed. Heating is limited to speed 1-3." }),
     rotationDirection: Type.Union([Type.Literal("left"), Type.Literal("right")], { description: "Blade direction for manual cooking." })
   },
   ModeObjectOptions
@@ -211,6 +212,17 @@ const RecipeStepModeSchemaRiceCooking = Type.Object(
   ModeObjectOptions
 );
 
+const RecipeStepModeSchemaHeatWater = Type.Object(
+  {
+    type: Type.Literal("heatWater"),
+    temperature: integerEnumSchema(
+      SMART_HEAT_WATER_TEMPERATURE_STEPS,
+      `Target water temperature in C; the programme stops when it is reached (100 = boiling). Use one of: ${SMART_HEAT_WATER_TEMPERATURE_STEPS.join(", ")}. At most 1.5 l of water.`
+    )
+  },
+  ModeObjectOptions
+);
+
 const RecipeStepModeSchemaFoodProcessor = Type.Object(
   {
     type: Type.Literal("foodProcessor"),
@@ -255,7 +267,8 @@ const RecipeStepModeSchema = Type.Union([
   RecipeStepModeSchemaRiceCooking,
   RecipeStepModeSchemaFoodProcessor,
   RecipeStepModeSchemaPuree,
-  RecipeStepModeSchemaSmoothie
+  RecipeStepModeSchemaSmoothie,
+  RecipeStepModeSchemaHeatWater
 ], {
   description: "Discriminated Smart mode settings. Each mode type only accepts the fields that mode uses."
 });
@@ -301,7 +314,8 @@ const RecipeStepSchema = Type.Union([
         RecipeStepModeSchemaRiceCooking,
         RecipeStepModeSchemaFoodProcessor,
         RecipeStepModeSchemaPuree,
-        RecipeStepModeSchemaSmoothie
+        RecipeStepModeSchemaSmoothie,
+        RecipeStepModeSchemaHeatWater
       ])
     },
     { additionalProperties: false }
