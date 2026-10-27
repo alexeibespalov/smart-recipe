@@ -29,8 +29,15 @@ the login browser downloads.
 
 Then share any recipe: *"Put this on my cooker: https://…"*.
 
+## Recipe cards
+
+Sending a recipe and asking what's on the cooker show colourful cards inline in the chat (an MCP App: the
+`ui://smart-cooker/card.html` view, `src/mcp/ui/`, bundled into one HTML file at build time). The view only paints
+the `structuredContent` the server builds with `src/recipes/recipe-card.ts`.
+
 ## Sources
 
 - `desktop-extension/` — extension manifest (including the version) and icon
 - `releases/` — every released `.mcpb`, tracked in git
-- `../src/mcp/` — the MCP server (`presentation.ts` holds the conversation guidance); `../tsup.claude.config.ts` bundles it
+- `../src/mcp/` — the MCP server (`presentation.ts` holds the conversation guidance, `ui/` the recipe-card view);
+  `../tsup.claude.config.ts` bundles both

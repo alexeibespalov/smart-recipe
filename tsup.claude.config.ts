@@ -5,7 +5,7 @@ const { version } = JSON.parse(readFileSync("claude/desktop-extension/manifest.j
 
 // Self-contained Smart Cooker MCP server for the Claude Desktop extension: every dependency is bundled
 // except Playwright, which ships browser-side assets and is copied next to the bundle as a package.
-export default defineConfig({
+export default defineConfig([{
   entry: { index: "src/mcp/main.ts" },
   outDir: "build/claude/server",
   format: ["esm"],
@@ -24,4 +24,18 @@ export default defineConfig({
   dts: false,
   clean: true,
   minify: true
-});
+}, {
+  // The recipe-card MCP Apps view: a browser script that scripts/build-claude.mjs inlines into ui/card.html.
+  entry: { card: "src/mcp/ui/card.ts" },
+  outDir: "build/claude/ui",
+  format: ["iife"],
+  platform: "browser",
+  target: "es2020",
+  bundle: true,
+  noExternal: [/.*/],
+  splitting: false,
+  sourcemap: false,
+  dts: false,
+  clean: true,
+  minify: true
+}]);

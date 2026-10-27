@@ -32,7 +32,7 @@ import {
 } from "../pipeline/assistant-recipes.js";
 import type { DeviceId } from "../devices/api.js";
 import type { RetrievedRecipePage } from "../retriever/types.js";
-import { getNumber, getString, isRecord } from "../utils/unknown.js";
+import { getNumber, getRecord, getString, isRecord } from "../utils/unknown.js";
 import {
   AFTER_INVALID,
   AFTER_PREPARE,
@@ -44,6 +44,7 @@ import {
   presentationGuide,
   uploadConfirmation
 } from "./presentation.js";
+import { buildRecipeCard, titleEmoji } from "../recipes/recipe-card.js";
 import type { McpServerDefinition, McpToolDefinition, McpToolResult } from "./protocol.js";
 
 // Tools for an assistant that writes recipes itself. None of them call an LLM:
@@ -70,7 +71,16 @@ export interface SmartCookerToolsOptions {
   pinnedSettings?: Record<string, string>;
   /** Reported to clients as serverInfo.version; the extension build injects its manifest version. */
   version?: string;
+  /** The recipe-card MCP Apps view (single-file HTML); a placeholder is served when it returns nothing. */
+  cardHtml?: () => string | undefined;
 }
+
+/** The MCP Apps view that shows upload and list results as recipe cards. */
+export const CARD_RESOURCE_URI = "ui://smart-cooker/card.html";
+const CARD_IMAGE_DOMAINS = ["https://mc-web-user-content-cdn.tecpal.com", "https://mc-web-content-cdn.tecpal.com"];
+const CARD_PLACEHOLDER = "<!doctype html><meta charset=\"utf-8\"><body style=\"font-family:sans-serif\">Smart Cooker card view is not built.</body>";
+
+type JobOutput = { result: unknown; isError?: boolean; view?: Record<string, unknown> };
 
 type JobKind = "prepare" | "validate" | "upload" | "list" | "check" | "login";
 
@@ -81,7 +91,7 @@ interface Job {
   done: Promise<void>;
   state:
     | { kind: "running" }
-    | { kind: "done"; result: unknown; isError: boolean }
+    | { kind: "done"; result: unknown; isError: boolean; view?: Record<string, unknown> }
     | { kind: "failed"; error: string };
 }
 
@@ -114,10 +124,10 @@ export function createSmartCookerServer(options: SmartCookerToolsOptions): McpSe
     for (const [key, value] of Object.entries(pinned)) process.env[key] = value;
   }
 
-  function startJob(kind: JobKind, run: () => Promise<{ result: unknown; isError?: boolean }>): Job {
+  function startJob(kind: JobKind, run: () => Promise<JobOutput>): Job {
     const job: Job = { id: randomUUID().slice(0, 8), kind, startedAt: Date.now(), done: Promise.resolve(), state: { kind: "running" } };
     job.done = run().then(
-      ({ result, isError }) => { job.state = { kind: "done", result, isError: Boolean(isError) }; },
+      ({ result, isError, view }) => { job.state = { kind: "done", result, isError: Boolean(isError), view }; },
       (error: unknown) => {
         logger.warn({ err: error, kind }, "smart-cooker tool failed");
         job.state = { kind: "failed", error: describeError(error) };
@@ -146,8 +156,10 @@ export function createSmartCookerServer(options: SmartCookerToolsOptions): McpSe
             ? LOGIN_STARTED
             : "Still working. Call job_status with this job_id to wait for the result."
         });
-      case "done":
-        return text({ status: job.state.isError ? "failed" : "done", ...base, result: job.state.result }, job.state.isError);
+      case "done": {
+        const reply = text({ status: job.state.isError ? "failed" : "done", ...base, result: job.state.result }, job.state.isError);
+        return job.state.view ? { ...reply, structuredContent: job.state.view } : reply;
+      }
       case "failed":
         return text({ status: "failed", ...base, error: job.state.error }, true);
       default: {
@@ -187,7 +199,7 @@ export function createSmartCookerServer(options: SmartCookerToolsOptions): McpSe
     };
   }
 
-  async function upload(args: Record<string, unknown>) {
+  async function upload(args: Record<string, unknown>): Promise<JobOutput> {
     const recipe = recipeArg(args);
     const device = deviceArg(args, recipe);
     const adapter = getDeviceAdapter(device);
@@ -201,7 +213,9 @@ export function createSmartCookerServer(options: SmartCookerToolsOptions): McpSe
 
     // Check first so an invalid recipe never turns into a "not connected" error.
     const check = checkRecipeInput(adapter, recipe, { excludeModes, sourceUrl, sourceMarkdown: page.markdown });
-    if (check.kind === "invalid") return { result: { ok: false, errors: check.errors, next: AFTER_INVALID }, isError: true };
+    if (check.kind === "invalid") {
+      return { result: { ok: false, errors: check.errors, next: AFTER_INVALID }, isError: true, view: { kind: "invalid", errors: check.errors } };
+    }
     const requestedStatus = stringArg(args.status);
     if (requestedStatus !== undefined && !isRecipeStatus(requestedStatus)) {
       throw new ToolInputError(`'status' must be omitted (private, the default) or 'draft'. Recipes are never submitted to the community.`);
@@ -219,28 +233,60 @@ export function createSmartCookerServer(options: SmartCookerToolsOptions): McpSe
       cookie,
       logger
     });
-    if (outcome.kind === "invalid") return { result: { ok: false, errors: outcome.errors, next: AFTER_INVALID }, isError: true };
+    if (outcome.kind === "invalid") {
+      return { result: { ok: false, errors: outcome.errors, next: AFTER_INVALID }, isError: true, view: { kind: "invalid", errors: outcome.errors } };
+    }
     const summary = summarizeUploadedRecipe(outcome.recipe);
     const expectedStatus = defaultRecipeStatus(device, requestedStatus);
     const statusMismatch = device === "mc" && summary.status !== undefined && summary.status !== expectedStatus;
+    const warning = statusMismatch
+      ? `Monsieur Cuisine kept this recipe as '${summary.status}' instead of publishing it privately${summary.publishError ? `: ${summary.publishError}` : ""}. Tell the user in one sentence and give them the web link, where they can fix it and press the private-publish button. Do not upload it again (that would create a duplicate).`
+      : undefined;
     return {
-      result: {
-        ...summary,
-        tellUser: uploadConfirmation(device, summary),
-        ...(statusMismatch
-          ? {
-            warning: `Monsieur Cuisine kept this recipe as '${summary.status}' instead of publishing it privately${summary.publishError ? `: ${summary.publishError}` : ""}. Tell the user in one sentence and give them the web link, where they can fix it and press the private-publish button. Do not upload it again (that would create a duplicate).`
-          }
-          : {})
+      result: { ...summary, tellUser: uploadConfirmation(device, summary), ...(warning ? { warning } : {}) },
+      view: {
+        kind: "upload",
+        card: buildRecipeCard(outcome.recipe.recipeInput, device),
+        upload: {
+          status: summary.status,
+          recipeUrl: summary.recipeUrl,
+          published: !statusMismatch,
+          publishError: summary.publishError,
+          thumbnailUrl: summary.id ? await thumbnailFor(adapter, cookie, summary.id) : undefined
+        }
       }
     };
   }
 
-  async function list(args: Record<string, unknown>) {
+  /** Best effort: the uploaded image's URL (it may still be processing, then there is none yet). */
+  async function thumbnailFor(adapter: DeviceAdapter, cookie: string, id: string): Promise<string | undefined> {
+    try {
+      const stored = await adapter.getRecipe({ cookie, id });
+      const data = getRecord(stored, "data");
+      const recipe = getRecord(data, "recipe") ?? data;
+      const thumbnail = getRecord(recipe, "thumbnail");
+      return getString(getRecord(thumbnail, "landscapeMedia"), "url") ?? getString(getRecord(thumbnail, "portraitMedia"), "url");
+    } catch (error) {
+      logger.debug({ err: error, id }, "no thumbnail for the uploaded recipe yet");
+      return undefined;
+    }
+  }
+
+  async function list(args: Record<string, unknown>): Promise<JobOutput> {
     const adapter = getDeviceAdapter(deviceArg(args));
     const limit = getNumber(args, "limit");
     const result = await adapter.listDrafts({ cookie: requireCookie(adapter), size: limit && limit > 0 ? Math.floor(limit) : 20 });
-    return { result: { ...summarizeRecipeList(result, { search: stringArg(args.search) }), presentation: LIST_PRESENTATION } };
+    const list = summarizeRecipeList(result, { search: stringArg(args.search) });
+    return {
+      result: { ...list, presentation: LIST_PRESENTATION },
+      view: {
+        kind: "list",
+        device: adapter.id,
+        total: list.total,
+        search: stringArg(args.search),
+        recipes: list.recipes.map((recipe) => ({ ...recipe, emoji: titleEmoji(recipe.title ?? "") }))
+      }
+    };
   }
 
   async function check(args: Record<string, unknown>) {
@@ -312,6 +358,16 @@ export function createSmartCookerServer(options: SmartCookerToolsOptions): McpSe
     serverInfo: { name: "smart-cooker", version: options.version ?? "dev" },
     instructions: SERVER_INSTRUCTIONS,
     tools: SMART_COOKER_TOOLS,
+    resources: [
+      {
+        uri: CARD_RESOURCE_URI,
+        name: "Smart Cooker recipe card",
+        description: "Shows uploaded recipes and the user's cooker recipes as colourful cards.",
+        mimeType: "text/html;profile=mcp-app",
+        _meta: { ui: { csp: { resourceDomains: CARD_IMAGE_DOMAINS }, prefersBorder: true } },
+        read: () => options.cardHtml?.() ?? CARD_PLACEHOLDER
+      }
+    ],
     callTool
   };
 }
@@ -456,7 +512,8 @@ export const SMART_COOKER_TOOLS: readonly McpToolDefinition[] = [
       required: ["recipe"],
       additionalProperties: false
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true }
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    _meta: { ui: { resourceUri: CARD_RESOURCE_URI } }
   },
   {
     name: "list_recipes",
@@ -471,7 +528,8 @@ export const SMART_COOKER_TOOLS: readonly McpToolDefinition[] = [
       },
       additionalProperties: false
     },
-    annotations: { readOnlyHint: true, openWorldHint: true }
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    _meta: { ui: { resourceUri: CARD_RESOURCE_URI } }
   },
   {
     name: "check_connection",

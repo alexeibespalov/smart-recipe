@@ -2,7 +2,7 @@ import process from "node:process";
 import { isRecord } from "../utils/unknown.js";
 
 // Minimal MCP server over stdio: newline-delimited JSON-RPC 2.0 on stdin/stdout.
-// Implements initialize, ping, tools/list and tools/call — all Claude Desktop needs for a tools-only server.
+// Implements initialize, ping, tools/list, tools/call and, for MCP Apps views, resources/list and resources/read.
 
 export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] as const;
 
@@ -20,17 +20,32 @@ export interface McpToolDefinition {
   description: string;
   inputSchema: Record<string, unknown>;
   annotations?: McpToolAnnotations;
+  /** e.g. `{ ui: { resourceUri } }` to show an MCP Apps view with the tool's results. */
+  _meta?: Record<string, unknown>;
 }
 
 export interface McpToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
+  /** Data for a linked MCP Apps view; the text content is what the model reads. */
+  structuredContent?: Record<string, unknown>;
+}
+
+export interface McpResource {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType: string;
+  _meta?: Record<string, unknown>;
+  /** Produced on resources/read, so a large view is only loaded when a client asks for it. */
+  read(): string;
 }
 
 export interface McpServerDefinition {
   serverInfo: { name: string; version: string };
   instructions?: string;
   tools: readonly McpToolDefinition[];
+  resources?: readonly McpResource[];
   callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult>;
 }
 
@@ -70,7 +85,10 @@ async function dispatch(definition: McpServerDefinition, method: string, params:
       const protocolVersion = SUPPORTED_PROTOCOL_VERSIONS.find((version) => version === requested) ?? SUPPORTED_PROTOCOL_VERSIONS[0];
       return {
         protocolVersion,
-        capabilities: { tools: { listChanged: false } },
+        capabilities: {
+          tools: { listChanged: false },
+          ...(definition.resources?.length ? { resources: { listChanged: false } } : {})
+        },
         serverInfo: definition.serverInfo,
         ...(definition.instructions ? { instructions: definition.instructions } : {})
       };
@@ -79,6 +97,17 @@ async function dispatch(definition: McpServerDefinition, method: string, params:
       return {};
     case "tools/list":
       return { tools: definition.tools };
+    case "resources/list":
+      return {
+        resources: (definition.resources ?? []).map(({ uri, name, description, mimeType, _meta }) => ({ uri, name, description, mimeType, _meta }))
+      };
+    case "resources/templates/list":
+      return { resourceTemplates: [] };
+    case "resources/read": {
+      const resource = (definition.resources ?? []).find((candidate) => candidate.uri === params.uri);
+      if (!resource) throw new Error(`Unknown resource: ${String(params.uri)}`);
+      return { contents: [{ uri: resource.uri, mimeType: resource.mimeType, text: resource.read(), _meta: resource._meta }] };
+    }
     case "tools/call": {
       const name = typeof params.name === "string" ? params.name : "";
       const args = isRecord(params.arguments) ? params.arguments : {};

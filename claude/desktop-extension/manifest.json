@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "smart-cooker",
   "display_name": "Smart Cooker",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "description": "Let Claude write recipes for your Monsieur Cuisine Smart or Thermomix and send them straight to your cooker.",
   "long_description": "Share any recipe link or paste a recipe, and Claude turns it into a guided machine recipe — weighing, chopping, sautéing, kneading and steaming steps with real times, temperatures and speeds — in your language.\n\nClaude writes the recipe itself; this extension fetches the source, checks Claude's recipe against the device's physical limits (jug capacity, speed limits while heating, accessory modes you don't own) and uploads it to your Monsieur Cuisine (Lidl) or Cookidoo (Thermomix) account. No AI API key is needed.\n\nMonsieur Cuisine recipes are published to your private library so they appear on the cooker touchscreen; Thermomix recipes go to Cookidoo Created Recipes. Log in once through the official login page that opens in a browser window; the session is stored locally in ~/.smart-recipe.",
   "author": {
@@ -74,8 +74,8 @@
     "mc_food_processor": {
       "type": "boolean",
       "title": "I own the Monsieur Cuisine food processor attachment",
-      "description": "Allows recipes to use the food-processor mode.",
-      "default": false,
+      "description": "Allows recipes to use the food-processor mode (slicing and grating). Turn off if you don't have the attachment.",
+      "default": true,
       "required": false
     },
     "tm_version": {

@@ -1,0 +1,287 @@
+:root {
+  --bg: #fffaf5;
+  --panel: #ffffff;
+  --ink: #2b2118;
+  --muted: #7a6b5d;
+  --line: #f0e4d7;
+  --chip: #fbf1e6;
+  --accent: #ff6b35;
+  --accent-2: #ffb703;
+  --ok: #2fbf71;
+  --warn: #f59e0b;
+  --heat: #ff7a45;
+  --motor: #4f8cff;
+  --weigh: #2fbf71;
+  --steam: #18b6c9;
+  --manual: #9b8cff;
+  --clean: #8a94a6;
+  --radius: 16px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #1b1612;
+  --panel: #241d18;
+  --ink: #f6ede4;
+  --muted: #b5a495;
+  --line: #3a2f27;
+  --chip: #30261f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 8%);
+}
+
+/* ── Banner ─────────────────────────────────────────── */
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 10px 16px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, var(--ok), #19a59b);
+}
+.banner.warn { background: linear-gradient(90deg, var(--warn), #f97316); }
+.banner.draft { background: linear-gradient(90deg, #8b7cf6, #6d5ce8); }
+.banner.pending { background: linear-gradient(90deg, var(--motor), #7c5cff); }
+.banner .label { white-space: nowrap; }
+.banner .sub { flex: 1 1 240px; font-weight: 500; opacity: 0.92; }
+
+/* ── Hero ───────────────────────────────────────────── */
+.hero {
+  position: relative;
+  min-height: 132px;
+  display: flex;
+  align-items: flex-end;
+  padding: 16px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background-size: cover;
+  background-position: center;
+}
+.hero.photo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(0 0 0 / 0%) 30%, rgb(0 0 0 / 65%));
+}
+.hero > * { position: relative; }
+.hero .emoji { font-size: 52px; line-height: 1; margin-right: 12px; filter: drop-shadow(0 3px 6px rgb(0 0 0 / 25%)); }
+.hero h1 { margin: 0; font-size: 22px; line-height: 1.2; text-shadow: 0 2px 8px rgb(0 0 0 / 30%); }
+
+.body { padding: 14px 16px 16px; }
+.description { margin: 0 0 12px; color: var(--muted); font-style: italic; }
+
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--chip);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pill.nutrient { font-weight: 500; }
+
+h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* ── Ingredients ────────────────────────────────────── */
+.group-name { margin: 8px 0 4px; font-weight: 700; }
+table.ingredients { width: 100%; border-collapse: collapse; }
+table.ingredients td { padding: 5px 6px; border-bottom: 1px dashed var(--line); vertical-align: top; }
+table.ingredients tr:last-child td { border-bottom: none; }
+td.qty { width: 1%; white-space: nowrap; text-align: right; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+td.flag { width: 1%; white-space: nowrap; text-align: right; }
+tr.optional td { color: var(--muted); }
+.weighed {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--weigh);
+  background: color-mix(in srgb, var(--weigh) 14%, transparent);
+  font-weight: 700;
+}
+
+/* ── Steps ──────────────────────────────────────────── */
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.step {
+  --tone: var(--manual);
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border-left: 4px solid var(--tone);
+  background: color-mix(in srgb, var(--tone) 8%, var(--panel));
+}
+.step.heat { --tone: var(--heat); }
+.step.motor { --tone: var(--motor); }
+.step.weigh { --tone: var(--weigh); }
+.step.steam { --tone: var(--steam); }
+.step.manual { --tone: var(--manual); }
+.step.clean { --tone: var(--clean); }
+.num {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: #fff;
+  background: var(--tone);
+}
+.step-title { font-weight: 700; }
+.step-text { margin-top: 2px; color: var(--muted); font-size: 14px; }
+.mode { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--tone);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Buttons / footer ───────────────────────────────── */
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+button.primary {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, var(--accent), #f43f5e);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+button.primary:hover { filter: brightness(1.06); }
+.note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+/* ── Recipe grid ────────────────────────────────────── */
+.grid-head { display: flex; align-items: baseline; gap: 10px; margin: 2px 2px 12px; }
+.grid-head h1 { margin: 0; font-size: 20px; }
+.grid-head .count { color: var(--muted); font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.tile {
+  appearance: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--panel);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.tile:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgb(0 0 0 / 12%); }
+.tile .thumb {
+  height: 104px;
+  display: grid;
+  place-items: center;
+  font-size: 44px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background-size: cover;
+  background-position: center;
+}
+.tile .info { padding: 9px 11px 11px; }
+.tile .name { font-weight: 700; line-height: 1.25; }
+.tile .meta { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.status {
+  display: inline-block;
+  margin-top: 7px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--ok);
+}
+.status.draft { background: #8b7cf6; }
+.status.other { background: var(--clean); }
+
+.empty, .message { padding: 18px; text-align: center; color: var(--muted); }
+.message strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 16px; }
+.message ul { text-align: left; margin: 10px auto 0; max-width: 520px; font-size: 13px; }
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid rgb(255 255 255 / 40%);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Confetti ───────────────────────────────────────── */
+.confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.confetti span {
+  position: absolute;
+  top: -40px;
+  font-size: 20px;
+  animation: fall 1.8s ease-in forwards;
+}
+@keyframes fall {
+  to { transform: translateY(110vh) rotate(540deg); opacity: 0.2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti, .spinner { display: none; }
+  .tile { transition: none; }
+}
+
+@media (max-width: 420px) {
+  .hero .emoji { font-size: 40px; }
+  .hero h1 { font-size: 19px; }
+  .step { grid-template-columns: 28px 1fr; padding: 9px; }
+  .num { width: 26px; height: 26px; }
+}

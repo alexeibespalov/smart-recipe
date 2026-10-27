@@ -58,12 +58,21 @@ if (fs.existsSync(releasePath) && !force) {
 
 fs.rmSync(out, { recursive: true, force: true });
 
-// 2. The server bundle (tsup.claude.config.ts reads the same manifest version).
+// 2. The server bundle and the recipe-card view (tsup.claude.config.ts reads the same manifest version).
 execFileSync(bin("tsup"), ["--config", "tsup.claude.config.ts"], { cwd: root, stdio: "inherit" });
 
-/** Copies the server runtime (bundle, Playwright, ESM marker, license) into the extension directory. */
+// The card view is one self-contained HTML file (MCP Apps views load no files of their own).
+const cardTemplate = fs.readFileSync(path.join(root, "src", "mcp", "ui", "card.html"), "utf8");
+const cardCss = fs.readFileSync(path.join(root, "src", "mcp", "ui", "card.css"), "utf8");
+const cardJs = fs.readFileSync(path.join(out, "ui", "card.global.js"), "utf8").replaceAll("</script", "<\\/script");
+const cardHtml = cardTemplate.split("/*__CARD_CSS__*/").join(cardCss).split("/*__CARD_JS__*/").join(cardJs);
+fs.writeFileSync(path.join(out, "ui", "card.html"), cardHtml);
+
+/** Copies the server runtime (bundle, card view, Playwright, ESM marker, license) into the extension directory. */
 function addServerRuntime(target) {
   fs.cpSync(serverDir, path.join(target, "server"), { recursive: true });
+  fs.mkdirSync(path.join(target, "ui"), { recursive: true });
+  fs.copyFileSync(path.join(out, "ui", "card.html"), path.join(target, "ui", "card.html"));
   // Playwright stays a real package: it loads injected scripts and its CLI (browser install) from disk.
   for (const name of ["playwright", "playwright-core"]) {
     const source = path.dirname(require.resolve(`${name}/package.json`));

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { createLogger, type LogLevel } from "../logging/logger.js";
 import { serveMcpOverStdio } from "./protocol.js";
 import { createSmartCookerServer, pinnedSettingsFromEnv } from "./tools.js";
@@ -22,6 +24,18 @@ function logLevelFromEnv(): LogLevel {
   return LOG_LEVELS.find((level) => level === process.env.LOG_LEVEL) ?? "info";
 }
 
+// The extension ships the recipe-card view next to the server bundle (server/index.js -> ui/card.html).
+const CARD_HTML_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "ui", "card.html");
+let cardHtml: string | undefined;
+function readCardHtml(): string | undefined {
+  try {
+    cardHtml ??= fs.readFileSync(CARD_HTML_PATH, "utf8");
+  } catch {
+    return undefined;
+  }
+  return cardHtml;
+}
+
 // Desktop passes empty strings for settings the user left blank; treat those as unset.
 const pinnedSettings = pinnedSettingsFromEnv();
 
@@ -30,5 +44,6 @@ serveMcpOverStdio(createSmartCookerServer({
   logger: createLogger({ level: logLevelFromEnv(), name: "smart-cooker-mcp", destination: 2 }),
   pinnedSettings,
   waitMs: Number(process.env.SMART_COOKER_WAIT_MS) || undefined,
-  version: VERSION
+  version: VERSION,
+  cardHtml: readCardHtml
 }));

@@ -1,11 +1,11 @@
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLogger } from "../src/logging/logger.js";
 import { handleMcpMessage, type McpServerDefinition, type McpToolResult } from "../src/mcp/protocol.js";
 import { uploadConfirmation } from "../src/mcp/presentation.js";
 import { defaultRecipeStatus } from "../src/pipeline/assistant-recipes.js";
-import { SMART_COOKER_TOOLS, createSmartCookerServer, pinnedSettingsFromEnv } from "../src/mcp/tools.js";
+import { CARD_RESOURCE_URI, SMART_COOKER_TOOLS, createSmartCookerServer, pinnedSettingsFromEnv } from "../src/mcp/tools.js";
 import { soupWithStep6Mode, validSoup } from "./fixtures/mc-recipes.js";
 
 const echoServer: McpServerDefinition = {
@@ -150,5 +150,107 @@ describe("recipe status", () => {
     const result = await server().callTool("upload_recipe", { recipe: validSoup, status: "publish" });
     expect(result.isError).toBe(true);
     expect(body(result).error).toContain("never submitted to the community");
+  });
+});
+
+describe("recipe-card MCP App", () => {
+  const withCard = () => createSmartCookerServer({
+    configPath: path.join(os.tmpdir(), `smart-cooker-test-${process.pid}-missing`),
+    logger: createLogger(),
+    pinnedSettings: { TARGET_DEVICE: "mc", MC_LOCALE: "en-US" },
+    cardHtml: () => "<!doctype html><title>card</title>"
+  });
+
+  it("links upload_recipe and list_recipes to the card view", () => {
+    const uri = (name: string) => (SMART_COOKER_TOOLS.find((tool) => tool.name === name)?._meta?.ui as { resourceUri?: string } | undefined)?.resourceUri;
+    expect(uri("upload_recipe")).toBe(CARD_RESOURCE_URI);
+    expect(uri("list_recipes")).toBe(CARD_RESOURCE_URI);
+    expect(uri("prepare_recipe")).toBeUndefined();
+  });
+
+  it("serves the card through resources/list and resources/read", async () => {
+    const definition = withCard();
+    const init = await handleMcpMessage(definition, { jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+    expect(init).toMatchObject({ result: { capabilities: { resources: {} } } });
+
+    const listed = await handleMcpMessage(definition, { jsonrpc: "2.0", id: 2, method: "resources/list" });
+    expect(listed).toMatchObject({ result: { resources: [{ uri: CARD_RESOURCE_URI, mimeType: "text/html;profile=mcp-app" }] } });
+
+    const read = await handleMcpMessage(definition, { jsonrpc: "2.0", id: 3, method: "resources/read", params: { uri: CARD_RESOURCE_URI } });
+    expect(read).toMatchObject({
+      result: {
+        contents: [{
+          uri: CARD_RESOURCE_URI,
+          mimeType: "text/html;profile=mcp-app",
+          text: "<!doctype html><title>card</title>",
+          _meta: { ui: { csp: { resourceDomains: expect.arrayContaining(["https://mc-web-user-content-cdn.tecpal.com"]) } } }
+        }]
+      }
+    });
+    expect(await handleMcpMessage(definition, { jsonrpc: "2.0", id: 4, method: "resources/read", params: { uri: "ui://nope" } })).toMatchObject({ error: {} });
+  });
+
+  it("gives an invalid upload a view so the card says it is being fixed", async () => {
+    const result = await withCard().callTool("upload_recipe", { recipe: soupWithStep6Mode({ speed: 5 }) });
+    expect(result.structuredContent).toMatchObject({ kind: "invalid", errors: expect.arrayContaining(["/servingSize/steps/6/mode/speed must be <= 3"]) });
+  });
+});
+
+describe("upload card", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the recipe card and a published upload for the view", async () => {
+    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
+      const call = JSON.parse(init.body) as { method: string };
+      const body = call.method === "POST"
+        ? { code: 0, message: "", data: { recipe: { id: 42, title: "Silky Tomato Soup", status: "draft" } } }
+        : { code: 0, message: "", data: null };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    const definition = createSmartCookerServer({
+      configPath: path.join(os.tmpdir(), `smart-cooker-test-${process.pid}-missing`),
+      logger: createLogger(),
+      pinnedSettings: { TARGET_DEVICE: "mc", MC_LOCALE: "en-US", MC_COOKIE: "session=test" }
+    });
+
+    const result = await definition.callTool("upload_recipe", { recipe: validSoup, no_image: true });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({
+      kind: "upload",
+      card: { title: "Silky Tomato Soup", emoji: "🍲" },
+      upload: { status: "private-publish", published: true }
+    });
+    expect(body(result).result).toMatchObject({ status: "private-publish", tellUser: expect.stringContaining("on the cooker screen") });
+  });
+});
+
+describe("recipe list view", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("passes the search on so the card can say how many matched", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({
+      code: 0,
+      message: "",
+      data: { total: 34, totalPage: 2, recipes: [{ id: 7, title: "Sauerkraut soup", status: "private-publish" }, { id: 8, title: "Borscht", status: "draft" }] }
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const definition = createSmartCookerServer({
+      configPath: path.join(os.tmpdir(), `smart-cooker-test-${process.pid}-missing`),
+      logger: createLogger(),
+      pinnedSettings: { TARGET_DEVICE: "mc", MC_LOCALE: "en-US", MC_COOKIE: "session=test" }
+    });
+
+    const result = await definition.callTool("list_recipes", { search: "sauerkraut" });
+
+    expect(result.structuredContent).toMatchObject({
+      kind: "list",
+      total: 34,
+      search: "sauerkraut",
+      recipes: [{ title: "Sauerkraut soup", emoji: "🍲" }]
+    });
   });
 });
